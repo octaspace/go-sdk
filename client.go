@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-const BaseURL = "https://api.octa.space"
+var BaseURL = "https://api.octa.space"
 
 // Client is an HTTP client for the OctaSpace API.
 type Client struct {
