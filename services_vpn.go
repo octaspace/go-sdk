@@ -9,13 +9,13 @@ import (
 
 // VPNRelay represents an available VPN relay node.
 type VPNRelay struct {
-	NodeID     int64   `json:"node_id"`
-	Country    string  `json:"country"`
-	CountryISO string  `json:"country_iso"`
-	City       string  `json:"city"`
-	Latitude   float64 `json:"latitude"`
-	Longitude  float64 `json:"longitude"`
-	Residential bool   `json:"residential"`
+	NodeID      int64   `json:"node_id"`
+	Country     string  `json:"country"`
+	CountryISO  string  `json:"country_iso"`
+	City        string  `json:"city"`
+	Latitude    float64 `json:"latitude"`
+	Longitude   float64 `json:"longitude"`
+	Residential bool    `json:"residential"`
 
 	// Pricing
 	PricePerGB      float64 `json:"traffic_price_usd"`

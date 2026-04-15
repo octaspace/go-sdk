@@ -8,29 +8,29 @@ import (
 
 // MachineRental represents an available machine for rent.
 type MachineRental struct {
-	NodeID      int64  `json:"node_id"`
-	Country     string `json:"country"`
-	CountryISO  string `json:"country_iso"`
-	City        string `json:"city"`
-	Arch        string `json:"arch"`
-	OSVersion   string `json:"os_version"`
-	Virt        string `json:"virt"` // virtualisation type, e.g. "none", "kvm"
-	MemoryType  string `json:"memory_type"`
+	NodeID       int64  `json:"node_id"`
+	Country      string `json:"country"`
+	CountryISO   string `json:"country_iso"`
+	City         string `json:"city"`
+	Arch         string `json:"arch"`
+	OSVersion    string `json:"os_version"`
+	Virt         string `json:"virt"` // virtualisation type, e.g. "none", "kvm"
+	MemoryType   string `json:"memory_type"`
 	CPUModelName string `json:"cpu_model_name"`
 	CPUVendorID  string `json:"cpu_vendor_id"`
-	CPUCores    int    `json:"cpu_cores"`
-	CPUSpeed    int    `json:"cpu_speed"`    // MHz
-	MemorySpeed int    `json:"memory_speed"` // MHz
-	TotalMemory int64  `json:"total_memory"` // bytes
-	FreeDisk    int64  `json:"free_disk"`    // bytes
-	DiskSpeedMBS int   `json:"disk_speed_mbs"`
-	CUDAVersion string `json:"cuda_version"`
-	GPUVendor   string `json:"gpu_vendor"`
-	IsHasGPU    bool   `json:"is_has_gpu"`
-	IsHiveOS    bool   `json:"is_hive_os"`
-	IsWSL       bool   `json:"is_wsl"`
-	GPUPT       bool   `json:"gpu_pt"` // GPU passthrough
-	GDM         bool   `json:"gdm"`
+	CPUCores     int    `json:"cpu_cores"`
+	CPUSpeed     int    `json:"cpu_speed"`    // MHz
+	MemorySpeed  int    `json:"memory_speed"` // MHz
+	TotalMemory  int64  `json:"total_memory"` // bytes
+	FreeDisk     int64  `json:"free_disk"`    // bytes
+	DiskSpeedMBS int    `json:"disk_speed_mbs"`
+	CUDAVersion  string `json:"cuda_version"`
+	GPUVendor    string `json:"gpu_vendor"`
+	IsHasGPU     bool   `json:"is_has_gpu"`
+	IsHiveOS     bool   `json:"is_hive_os"`
+	IsWSL        bool   `json:"is_wsl"`
+	GPUPT        bool   `json:"gpu_pt"` // GPU passthrough
+	GDM          bool   `json:"gdm"`
 
 	// Scores
 	AIScore      int `json:"ai_score"`

@@ -48,7 +48,7 @@ func TestNetworkError_Wraps(t *testing.T) {
 
 func TestNodes_DownloadIdent(t *testing.T) {
 	wantBytes := []byte("identity-file-contents")
-	c, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	c, _ := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(200)
 		w.Write(wantBytes)
 	})
@@ -63,7 +63,7 @@ func TestNodes_DownloadIdent(t *testing.T) {
 
 func TestNodes_DownloadLogs(t *testing.T) {
 	wantBytes := []byte("node log data\n")
-	c, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	c, _ := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(200)
 		w.Write(wantBytes)
 	})

@@ -54,7 +54,7 @@ func ExampleWithBaseURLs() {
 // ExampleAPIError_errorsAs shows how to inspect typed API errors returned by
 // the SDK. All errors produced by SDK methods can be checked with errors.As.
 func ExampleAPIError_errorsAs() {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
 		w.Write([]byte(`{"error":"invalid api key"}`))
@@ -88,7 +88,7 @@ func ExampleAPIError_errorsAs() {
 
 // ExampleClient_Network shows how to fetch live network statistics.
 func ExampleClient_Network() {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		json.NewEncoder(w).Encode(map[string]any{
 			"nodes": map[string]any{"count": 690, "vpn": 147},
 		})
@@ -160,10 +160,10 @@ func ExampleMachineRentalCreateParams() {
 	client := octaspace.NewClient(os.Getenv("OCTA_API_KEY"))
 
 	resp, err := client.Services.MR.Create(context.Background(), &octaspace.MachineRentalCreateParams{
-		NodeID:   98765,
-		DiskSize: 50,
-		Image:    "nvidia/cuda:12.0-base",
-		Ports:    []int{22},
+		NodeID:    98765,
+		DiskSize:  50,
+		Image:     "nvidia/cuda:12.0-base",
+		Ports:     []int{22},
 		HTTPPorts: []int{8888}, // Jupyter notebook
 		Envs: map[string]string{
 			"JUPYTER_TOKEN": "secret",

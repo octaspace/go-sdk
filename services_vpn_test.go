@@ -37,8 +37,8 @@ func TestVPN_NormalizeNetMbits(t *testing.T) {
 		want float64
 	}{
 		{raw: 0, want: 0},
-		{raw: 100, want: 100},           // already Mbps (≤100 000)
-		{raw: 100_000, want: 100_000},   // boundary: treated as Mbps
+		{raw: 100, want: 100},         // already Mbps (≤100 000)
+		{raw: 100_000, want: 100_000}, // boundary: treated as Mbps
 		{raw: 100_001, want: float64(100_001) / 125_000},
 		{raw: 115_785_799, want: float64(115_785_799) / 125_000}, // ~926 Mbps
 	}

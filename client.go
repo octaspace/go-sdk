@@ -89,7 +89,7 @@ func NewStdLogger(l interface{ Printf(string, ...any) }) Logger {
 // config holds the resolved Client configuration.
 type config struct {
 	apiKey     string
-	baseURLs   []string      // tried in order; failover on network-level errors
+	baseURLs   []string // tried in order; failover on network-level errors
 	httpClient *http.Client
 	timeout    time.Duration // per-request SDK timeout applied via context
 	maxRetries int
@@ -104,7 +104,8 @@ type Option func(*config)
 // Equivalent to WithBaseURLs([]string{baseURL}).
 func WithBaseURL(baseURL string) Option {
 	return func(c *config) {
-		u := strings.TrimRight(baseURL, "/")
+		u := strings.TrimSpace(baseURL)
+		u = strings.TrimRight(u, "/")
 		if u != "" {
 			c.baseURLs = []string{u}
 		}
@@ -129,6 +130,7 @@ func WithBaseURLs(urls []string) Option {
 	return func(c *config) {
 		cleaned := make([]string, 0, len(urls))
 		for _, u := range urls {
+			u = strings.TrimSpace(u)
 			u = strings.TrimRight(u, "/")
 			if u != "" {
 				cleaned = append(cleaned, u)
@@ -260,19 +262,22 @@ func (c *Client) get(ctx context.Context, path string, params url.Values, dst an
 }
 
 // post performs a POST request, JSON-encodes body (if non-nil), and decodes the
-// response into dst (if non-nil). POST is never retried automatically.
+// response into dst (if non-nil). POST is never retried or failed-over
+// automatically — it always targets the first base URL only. This prevents
+// duplicate side-effects when a request reaches the server but the response
+// connection fails.
 func (c *Client) post(ctx context.Context, path string, body, dst any) error {
 	ctx, cancel := c.timeoutCtx(ctx)
 	defer cancel()
-	return c.do(ctx, http.MethodPost, path, nil, body, dst)
+	return c.doNoFailover(ctx, http.MethodPost, path, nil, body, dst)
 }
 
 // patch performs a PATCH request. Arguments work the same as post.
-// PATCH is never retried automatically.
+// PATCH is never retried or failed-over automatically.
 func (c *Client) patch(ctx context.Context, path string, body, dst any) error {
 	ctx, cancel := c.timeoutCtx(ctx)
 	defer cancel()
-	return c.do(ctx, http.MethodPatch, path, nil, body, dst)
+	return c.doNoFailover(ctx, http.MethodPatch, path, nil, body, dst)
 }
 
 // getRaw performs a GET request and returns the raw response body bytes without
@@ -345,6 +350,7 @@ func (c *Client) failover(fn func(baseURL string) error) error {
 }
 
 // do marshals body once, then tries each configured base URL via failover.
+// Used only for idempotent methods (GET).
 func (c *Client) do(ctx context.Context, method, path string, params url.Values, body, dst any) error {
 	var bodyData []byte
 	if !isNilValue(body) {
@@ -357,6 +363,21 @@ func (c *Client) do(ctx context.Context, method, path string, params url.Values,
 	return c.failover(func(baseURL string) error {
 		return c.doOnce(ctx, method, path, params, bodyData, dst, baseURL)
 	})
+}
+
+// doNoFailover marshals body and sends the request to the first base URL only.
+// Used for non-idempotent methods (POST, PATCH) to prevent duplicate requests
+// when the server processes the request but the response connection drops.
+func (c *Client) doNoFailover(ctx context.Context, method, path string, params url.Values, body, dst any) error {
+	var bodyData []byte
+	if !isNilValue(body) {
+		var err error
+		bodyData, err = json.Marshal(body)
+		if err != nil {
+			return fmt.Errorf("octaspace: marshal request body: %w", err)
+		}
+	}
+	return c.doOnce(ctx, method, path, params, bodyData, dst, c.cfg.baseURLs[0])
 }
 
 // doOnce executes a single HTTP round-trip against the given baseURL.
@@ -504,6 +525,6 @@ func retryDelay(attempt, retryAfterSeconds int) time.Duration {
 		attempt = maxBackoffShift
 	}
 	base := 500 * time.Millisecond * time.Duration(1<<attempt)
-	jitter := time.Duration(rand.Int63n(int64(base / 4)))
+	jitter := time.Duration(rand.Int63n(int64(base / 4))) //nolint:gosec // G404: jitter for retry backoff does not need crypto/rand
 	return base + jitter
 }

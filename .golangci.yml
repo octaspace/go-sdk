@@ -1,5 +1,9 @@
 version: "2"
 
+formatters:
+  enable:
+    - gofmt
+
 linters:
   enable:
     - errcheck
@@ -10,6 +14,9 @@ linters:
     - misspell
     - errorlint
     - nilerr
+    - revive
+    - gosec
+    - bodyclose
 
   settings:
     errcheck:
@@ -30,3 +37,11 @@ linters:
       # Example functions are kept concise; error handling is omitted by design.
       - path: "example_test\\.go$"
         linters: [errcheck]
+
+      # gosec: httptest servers in tests use unvalidated URLs by design.
+      - path: "_test\\.go$"
+        linters: [gosec]
+
+      # gosec: example_test.go serves compile-only demos, not production code.
+      - path: "example_test\\.go$"
+        linters: [gosec]

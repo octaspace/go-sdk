@@ -9,8 +9,8 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"net/http/httptrace"
 	"net/http/httptest"
+	"net/http/httptrace"
 	"testing"
 	"time"
 )
@@ -26,7 +26,7 @@ func newTestClient(t *testing.T, handler http.HandlerFunc) (*Client, *httptest.S
 
 // jsonHandler returns a handler that writes v as JSON with HTTP 200.
 func jsonHandler(v any) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(v)
 	}
@@ -34,7 +34,7 @@ func jsonHandler(v any) http.HandlerFunc {
 
 // statusHandler returns a handler that writes the given status code and body.
 func statusHandler(code int, body string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(code)
 		w.Write([]byte(body))
@@ -194,7 +194,7 @@ func TestClient_APIError500(t *testing.T) {
 }
 
 func TestClient_RequestIDInError(t *testing.T) {
-	c, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	c, _ := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("X-Request-Id", "req-abc-123")
 		w.WriteHeader(500)
 		w.Write([]byte(`{}`))
@@ -233,7 +233,7 @@ func TestClient_RetryOnTransientGET(t *testing.T) {
 
 func TestClient_NoRetryOnPOST(t *testing.T) {
 	attempts := 0
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		attempts++
 		w.WriteHeader(503)
 		w.Write([]byte(`{"error":"unavailable"}`))
@@ -304,17 +304,17 @@ type testLogger struct {
 	onDebug func()
 }
 
-func (l *testLogger) Debugf(format string, v ...any) {
+func (l *testLogger) Debugf(_ string, _ ...any) {
 	if l.onDebug != nil {
 		l.onDebug()
 	}
 }
-func (l *testLogger) Errorf(format string, v ...any) {}
+func (l *testLogger) Errorf(_ string, _ ...any) {}
 
 func TestClient_RetryNonRetryableStatus(t *testing.T) {
 	// A 404 on GET must NOT be retried even when maxRetries > 0.
 	attempts := 0
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		attempts++
 		w.WriteHeader(404)
 		w.Write([]byte(`{"error":"not found"}`))
@@ -362,7 +362,7 @@ func TestClient_RetryAfterPositive(t *testing.T) {
 
 func TestClient_DecodeError(t *testing.T) {
 	// If the server returns 200 but not valid JSON, do() should return a decode error.
-	c, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	c, _ := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(200)
 		w.Write([]byte("not json at all"))
 	})
@@ -421,7 +421,7 @@ type testPrintfer struct {
 
 func (p *testPrintfer) Printf(format string, v ...any) { p.fn(format, v...) }
 
-func TestNewStdLogger_WithRealLogLogger(t *testing.T) {
+func TestNewStdLogger_WithRealLogLogger(_ *testing.T) {
 	// Verify that *log.Logger satisfies the interface accepted by NewStdLogger.
 	l := log.New(io.Discard, "", 0)
 	logger := NewStdLogger(l)
@@ -433,7 +433,7 @@ func TestNewStdLogger_WithRealLogLogger(t *testing.T) {
 // closedURL returns the URL of a just-closed server — guaranteed connection refused.
 func closedURL(t *testing.T) string {
 	t.Helper()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
 	u := srv.URL
 	srv.Close()
 	return u
@@ -463,7 +463,7 @@ func TestClient_Failover_SkipsUnreachableHost(t *testing.T) {
 func TestClient_Failover_DoesNotFailoverOn500(t *testing.T) {
 	// HTTP 500 is a server error, not a network failure — must NOT failover.
 	calls := 0
-	bad := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	bad := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		calls++
 		http.Error(w, `{"error":"boom"}`, http.StatusInternalServerError)
 	}))
