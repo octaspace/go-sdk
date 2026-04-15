@@ -1,27 +1,48 @@
-package sdk
+package octaspace
 
-// Session represents an active or recent session.
+import (
+	"context"
+	"net/url"
+)
+
+// SSHEndpoint describes an SSH connection endpoint attached to a session.
+type SSHEndpoint struct {
+	Host string `json:"host"`
+	Port int    `json:"port"`
+}
+
+// Session represents an active or recent service session.
+//
+// Note: the /sessions and /sessions?recent=true endpoints return overlapping
+// but not identical field sets. Fields absent in a response are zero-valued.
 type Session struct {
-	UUID      string `json:"uuid"`
-	Service   string `json:"service"`
-	AppName   string `json:"app_name"`
-	AppLogo   string `json:"app_logo"`
-	NodeID    int64  `json:"node_id"`
-	Progress  string `json:"progress"`
-	IsReady   bool   `json:"is_ready"`
-	Duration  int64  `json:"duration"`
-	StartedAt int64  `json:"started_at"`
-	PublicIP  string `json:"public_ip"`
+	UUID    string `json:"uuid"`
+	Service string `json:"service"`
+	AppName string `json:"app_name"`
+	AppLogo string `json:"app_logo"`
+	NodeID  int64  `json:"node_id"`
 
-	SSHDirect struct {
-		Host string `json:"host"`
-		Port int    `json:"port"`
-	} `json:"ssh_direct"`
+	// Runtime state (present in active sessions)
+	Progress string `json:"progress"`
+	IsReady  bool   `json:"is_ready"`
+	PublicIP string `json:"public_ip"`
 
-	SSHProxy struct {
-		Host string `json:"host"`
-		Port int    `json:"port"`
-	} `json:"ssh_proxy"`
+	// Timing — returned as a bare integer or a quoted string depending on endpoint;
+	// FlexInt64 handles both transparently.
+	Duration   FlexInt64 `json:"duration"`
+	StartedAt  FlexInt64 `json:"started_at"`
+	FinishedAt FlexInt64 `json:"finished_at"`
+
+	// Network counters (present in recent sessions, returned as quoted strings)
+	RX string `json:"rx"`
+	TX string `json:"tx"`
+
+	// Billing
+	ChargeAmount      BigInt `json:"charge_amount"`
+	TerminationReason int    `json:"termination_reason"`
+
+	SSHDirect SSHEndpoint `json:"ssh_direct"`
+	SSHProxy  SSHEndpoint `json:"ssh_proxy"`
 
 	URLs map[string]string `json:"urls"`
 
@@ -43,62 +64,23 @@ type Session struct {
 	} `json:"node_hw"`
 }
 
-// SessionInfo holds detailed session information.
-type SessionInfo struct {
-	VPNConfig    string `json:"config"`
-	TX           int64  `json:"tx"`
-	RX           int64  `json:"rx"`
-	ChargeAmount BigInt `json:"charge_amount"`
+// ListSessionsParams contains optional filter parameters for [SessionsResource.List].
+type ListSessionsParams struct {
+	Recent *bool // set to true to include only recent sessions
 }
 
-// SessionLogs holds system and container logs for a session.
-type SessionLogs struct {
-	System []struct {
-		TS  int64  `json:"ts"`
-		Msg string `json:"msg"`
-	} `json:"system"`
-	Container string `json:"container"`
-}
+// SessionsResource provides access to the sessions listing endpoint.
+// Obtain via [Client.Sessions].
+type SessionsResource struct{ c *Client }
 
-// ListSessions fetches active/recent sessions.
-func (c *Client) ListSessions() ([]Session, error) {
+// List returns active and recent sessions. Pass nil params to list all sessions.
+//
+// GET /sessions
+func (r *SessionsResource) List(ctx context.Context, params *ListSessionsParams) ([]Session, error) {
+	qp := url.Values{}
+	if params != nil && params.Recent != nil && *params.Recent {
+		qp.Set("recent", "true")
+	}
 	var sessions []Session
-	if err := c.get("/sessions", &sessions); err != nil {
-		return nil, err
-	}
-	return sessions, nil
-}
-
-// ListSessionsRaw fetches sessions and returns raw JSON bytes.
-func (c *Client) ListSessionsRaw() ([]byte, error) {
-	return c.getRaw("/sessions")
-}
-
-// GetSessionInfo fetches detailed info for a session.
-func (c *Client) GetSessionInfo(uuid string) (*SessionInfo, error) {
-	var info SessionInfo
-	if err := c.get("/services/"+uuid+"/info", &info); err != nil {
-		return nil, err
-	}
-	return &info, nil
-}
-
-// GetSessionInfoRaw fetches detailed info and returns raw JSON bytes.
-func (c *Client) GetSessionInfoRaw(uuid string) ([]byte, error) {
-	return c.getRaw("/services/" + uuid + "/info")
-}
-
-// GetSessionLogs fetches logs for a session.
-func (c *Client) GetSessionLogs(uuid string) (*SessionLogs, error) {
-	var logs SessionLogs
-	if err := c.get("/services/"+uuid+"/logs", &logs); err != nil {
-		return nil, err
-	}
-	return &logs, nil
-}
-
-// StopSession terminates a session.
-func (c *Client) StopSession(uuid string) error {
-	_, err := c.getRaw("/services/" + uuid + "/stop")
-	return err
+	return sessions, r.c.get(ctx, "/sessions", qp, &sessions)
 }

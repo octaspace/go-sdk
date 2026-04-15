@@ -1,3 +1,3 @@
 module github.com/octaspace/go-sdk
 
-go 1.21
+go 1.20

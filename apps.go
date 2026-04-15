@@ -1,6 +1,8 @@
-package sdk
+package octaspace
 
-// App represents an available application.
+import "context"
+
+// App represents an application available for deployment.
 type App struct {
 	UUID     string `json:"uuid"`
 	Name     string `json:"name"`
@@ -11,16 +13,14 @@ type App struct {
 	} `json:"extra"`
 }
 
-// ListApps fetches available applications.
-func (c *Client) ListApps() ([]App, error) {
-	var apps []App
-	if err := c.get("/apps", &apps); err != nil {
-		return nil, err
-	}
-	return apps, nil
-}
+// AppsResource provides access to the application catalog endpoint.
+// Obtain via [Client.Apps].
+type AppsResource struct{ c *Client }
 
-// ListAppsRaw fetches available applications and returns raw JSON bytes.
-func (c *Client) ListAppsRaw() ([]byte, error) {
-	return c.getRaw("/apps")
+// List returns all available applications.
+//
+// GET /apps
+func (r *AppsResource) List(ctx context.Context) ([]App, error) {
+	var apps []App
+	return apps, r.c.get(ctx, "/apps", nil, &apps)
 }

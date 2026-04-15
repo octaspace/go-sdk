@@ -1,32 +1,11 @@
-package sdk
+package octaspace
 
 import (
-	"fmt"
+	"context"
 	"math/big"
 )
 
-// BigInt is a *big.Int that marshals/unmarshals as a JSON number string.
-type BigInt struct {
-	*big.Int
-}
-
-func (b *BigInt) UnmarshalJSON(data []byte) error {
-	n, ok := new(big.Int).SetString(string(data), 10)
-	if !ok {
-		return fmt.Errorf("invalid big integer: %s", data)
-	}
-	b.Int = n
-	return nil
-}
-
-func (b BigInt) MarshalJSON() ([]byte, error) {
-	if b.Int == nil {
-		return []byte("0"), nil
-	}
-	return []byte(b.Int.String()), nil
-}
-
-// Account holds account information.
+// Account holds OctaSpace account information.
 type Account struct {
 	AccountUUID string `json:"account_uuid"`
 	Avatar      string `json:"avatar"`
@@ -37,28 +16,35 @@ type Account struct {
 	Wallet      string `json:"wallet"`
 }
 
-// GetAccount fetches account information from GET /accounts.
-func (c *Client) GetAccount() (*Account, error) {
+// AccountsResource provides access to account endpoints.
+// Obtain via [Client.Accounts].
+type AccountsResource struct{ c *Client }
+
+// Profile returns the authenticated account's information.
+//
+// GET /accounts
+func (r *AccountsResource) Profile(ctx context.Context) (*Account, error) {
 	var account Account
-	if err := c.get("/accounts", &account); err != nil {
-		return nil, err
-	}
-	return &account, nil
+	return &account, r.c.get(ctx, "/accounts", nil, &account)
 }
 
-// GetBalance fetches the current account balance in Wei.
-func (c *Client) GetBalance() (*big.Int, error) {
+// Balance returns the authenticated account's balance in Wei.
+//
+// GET /accounts/balance
+func (r *AccountsResource) Balance(ctx context.Context) (*big.Int, error) {
 	var resp struct {
 		Balance BigInt `json:"balance"`
 	}
-	if err := c.get("/accounts/balance", &resp); err != nil {
+	if err := r.c.get(ctx, "/accounts/balance", nil, &resp); err != nil {
 		return nil, err
 	}
 	return resp.Balance.Int, nil
 }
 
-// ValidateToken checks that the API key is valid.
-func (c *Client) ValidateToken() error {
+// GenerateWallet creates a new wallet for the authenticated account.
+//
+// POST /accounts
+func (r *AccountsResource) GenerateWallet(ctx context.Context) (*Account, error) {
 	var account Account
-	return c.get("/accounts", &account)
+	return &account, r.c.post(ctx, "/accounts", nil, &account)
 }

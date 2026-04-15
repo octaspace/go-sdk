@@ -1,0 +1,6 @@
+.claude/
+*.exe
+*.test
+*.out
+coverage.out
+dist/

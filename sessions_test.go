@@ -1,23 +1,22 @@
-package sdk
+package octaspace
 
 import (
+	"context"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 )
 
-func TestListSessions(t *testing.T) {
+func TestSessions_List(t *testing.T) {
 	want := []Session{
 		{UUID: "sess-1", Service: "mr", IsReady: true, NodeID: 10},
 		{UUID: "sess-2", Service: "vpn", IsReady: false},
 	}
-	c, cleanup := withServer(t, jsonHandler(http.StatusOK, want))
-	defer cleanup()
-
-	got, err := c.ListSessions()
+	c, _ := newTestClient(t, jsonHandler(want))
+	got, err := c.Sessions.List(context.Background(), nil)
 	if err != nil {
-		t.Fatalf("ListSessions: %v", err)
+		t.Fatalf("List: %v", err)
 	}
 	if len(got) != len(want) {
 		t.Fatalf("len = %d, want %d", len(got), len(want))
@@ -32,57 +31,50 @@ func TestListSessions(t *testing.T) {
 	}
 }
 
-func TestListSessionsError(t *testing.T) {
-	c, cleanup := withServer(t, rawHandler(http.StatusUnauthorized, `{}`))
-	defer cleanup()
+func TestSessions_List_RecentParam(t *testing.T) {
+	var gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
+		jsonHandler([]Session{})(w, r)
+	}))
+	t.Cleanup(srv.Close)
+	c := NewClient("key", WithBaseURL(srv.URL), WithMaxRetries(0))
 
-	_, err := c.ListSessions()
+	recent := true
+	c.Sessions.List(context.Background(), &ListSessionsParams{Recent: &recent})
+	if gotQuery != "recent=true" {
+		t.Errorf("query = %q, want recent=true", gotQuery)
+	}
+}
+
+func TestSessions_List_Error(t *testing.T) {
+	c, _ := newTestClient(t, statusHandler(401, `{"error":"unauthorized"}`))
+	_, err := c.Sessions.List(context.Background(), nil)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
 }
 
-func TestListSessionsRaw(t *testing.T) {
-	body := `[{"uuid":"sess-1"}]`
-	c, cleanup := withServer(t, rawHandler(http.StatusOK, body))
-	defer cleanup()
-
-	got, err := c.ListSessionsRaw()
-	if err != nil {
-		t.Fatalf("ListSessionsRaw: %v", err)
-	}
-	if string(got) != body {
-		t.Fatalf("body = %q, want %q", got, body)
-	}
-}
-
-func TestGetSessionInfo(t *testing.T) {
+func TestSessionProxy_Info(t *testing.T) {
 	want := SessionInfo{
 		VPNConfig:    "wg-config-data",
 		TX:           1024,
 		RX:           2048,
 		ChargeAmount: BigInt{Int: big.NewInt(100)},
 	}
-
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/services/sess-abc/info" {
 			http.NotFound(w, r)
 			return
 		}
-		jsonHandler(http.StatusOK, want).ServeHTTP(w, r)
+		jsonHandler(want)(w, r)
 	}))
-	defer srv.Close()
+	t.Cleanup(srv.Close)
+	c := NewClient("key", WithBaseURL(srv.URL), WithMaxRetries(0))
 
-	orig := BaseURL
-	BaseURL = srv.URL
-	defer func() { BaseURL = orig }()
-
-	c := NewClient("key")
-	c.http = srv.Client()
-
-	got, err := c.GetSessionInfo("sess-abc")
+	got, err := c.Services.Session("sess-abc").Info(context.Background())
 	if err != nil {
-		t.Fatalf("GetSessionInfo: %v", err)
+		t.Fatalf("Info: %v", err)
 	}
 	if got.VPNConfig != want.VPNConfig {
 		t.Errorf("VPNConfig = %q, want %q", got.VPNConfig, want.VPNConfig)
@@ -90,118 +82,114 @@ func TestGetSessionInfo(t *testing.T) {
 	if got.TX != want.TX {
 		t.Errorf("TX = %d, want %d", got.TX, want.TX)
 	}
-}
-
-func TestGetSessionInfoError(t *testing.T) {
-	c, cleanup := withServer(t, rawHandler(http.StatusNotFound, `not found`))
-	defer cleanup()
-
-	_, err := c.GetSessionInfo("missing")
-	if err == nil {
-		t.Fatal("expected error, got nil")
+	if got.ChargeAmount.Int.Cmp(want.ChargeAmount.Int) != 0 {
+		t.Errorf("ChargeAmount = %s, want %s", got.ChargeAmount.Int, want.ChargeAmount.Int)
 	}
 }
 
-func TestGetSessionInfoRaw(t *testing.T) {
-	body := `{"config":"wg0"}`
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(body))
-	}))
-	defer srv.Close()
-
-	orig := BaseURL
-	BaseURL = srv.URL
-	defer func() { BaseURL = orig }()
-
-	c := NewClient("key")
-	c.http = srv.Client()
-
-	got, err := c.GetSessionInfoRaw("some-uuid")
-	if err != nil {
-		t.Fatalf("GetSessionInfoRaw: %v", err)
-	}
-	if string(got) != body {
-		t.Fatalf("body = %q, want %q", got, body)
+func TestSessionProxy_Info_Error(t *testing.T) {
+	c, _ := newTestClient(t, statusHandler(404, `{"error":"not found"}`))
+	_, err := c.Services.Session("missing").Info(context.Background())
+	if !IsNotFound(err) {
+		t.Errorf("expected NotFoundError, got %T: %v", err, err)
 	}
 }
 
-func TestGetSessionLogs(t *testing.T) {
+func TestSessionProxy_Logs(t *testing.T) {
 	want := SessionLogs{
 		Container: "container log line",
 		System: []struct {
 			TS  int64  `json:"ts"`
 			Msg string `json:"msg"`
-		}{
-			{TS: 1700000000, Msg: "started"},
-		},
+		}{{TS: 1700000000, Msg: "started"}},
 	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/services/sess-logs/logs" {
 			http.NotFound(w, r)
 			return
 		}
-		jsonHandler(http.StatusOK, want).ServeHTTP(w, r)
+		jsonHandler(want)(w, r)
 	}))
-	defer srv.Close()
+	t.Cleanup(srv.Close)
+	c := NewClient("key", WithBaseURL(srv.URL), WithMaxRetries(0))
 
-	orig := BaseURL
-	BaseURL = srv.URL
-	defer func() { BaseURL = orig }()
-
-	c := NewClient("key")
-	c.http = srv.Client()
-
-	got, err := c.GetSessionLogs("sess-logs")
+	got, err := c.Services.Session("sess-logs").Logs(context.Background())
 	if err != nil {
-		t.Fatalf("GetSessionLogs: %v", err)
+		t.Fatalf("Logs: %v", err)
 	}
 	if got.Container != want.Container {
 		t.Errorf("Container = %q, want %q", got.Container, want.Container)
 	}
 	if len(got.System) != 1 || got.System[0].Msg != "started" {
-		t.Errorf("System logs unexpected: %+v", got.System)
+		t.Errorf("System logs = %+v", got.System)
 	}
 }
 
-func TestGetSessionLogsError(t *testing.T) {
-	c, cleanup := withServer(t, rawHandler(http.StatusNotFound, `not found`))
-	defer cleanup()
-
-	_, err := c.GetSessionLogs("missing")
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-}
-
-func TestStopSession(t *testing.T) {
+func TestSessionProxy_Stop_UsesPost(t *testing.T) {
+	var gotMethod, gotPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/services/sess-stop/stop" {
-			http.NotFound(w, r)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{}`))
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		w.WriteHeader(200)
+		w.Write([]byte(`{}`))
 	}))
-	defer srv.Close()
+	t.Cleanup(srv.Close)
+	c := NewClient("key", WithBaseURL(srv.URL), WithMaxRetries(0))
 
-	orig := BaseURL
-	BaseURL = srv.URL
-	defer func() { BaseURL = orig }()
-
-	c := NewClient("key")
-	c.http = srv.Client()
-
-	if err := c.StopSession("sess-stop"); err != nil {
-		t.Fatalf("StopSession: %v", err)
+	if err := c.Services.Session("sess-stop").Stop(context.Background(), nil); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+	if gotMethod != http.MethodPost {
+		t.Errorf("method = %q, want POST", gotMethod)
+	}
+	if gotPath != "/services/sess-stop/stop" {
+		t.Errorf("path = %q, want /services/sess-stop/stop", gotPath)
 	}
 }
 
-func TestStopSessionError(t *testing.T) {
-	c, cleanup := withServer(t, rawHandler(http.StatusInternalServerError, `err`))
-	defer cleanup()
+func TestSessionProxy_Stop_WithScore(t *testing.T) {
+	var gotBody []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotBody, _ = readBody(r)
+		w.WriteHeader(200)
+		w.Write([]byte(`{}`))
+	}))
+	t.Cleanup(srv.Close)
+	c := NewClient("key", WithBaseURL(srv.URL), WithMaxRetries(0))
 
-	if err := c.StopSession("any"); err == nil {
+	score := 5
+	c.Services.Session("uuid").Stop(context.Background(), &StopParams{Score: &score})
+	if !containsAt(string(gotBody), `"score":5`) {
+		t.Errorf("body %q does not contain score", gotBody)
+	}
+}
+
+func TestSessionProxy_Stop_Error(t *testing.T) {
+	c, _ := newTestClient(t, statusHandler(500, `{"error":"server error"}`))
+	if err := c.Services.Session("any").Stop(context.Background(), nil); err == nil {
 		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestSessionProxy_UUIDEncoding(t *testing.T) {
+	var gotRawPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// RawPath is set when percent-encoded characters differ from the decoded path.
+		if r.URL.RawPath != "" {
+			gotRawPath = r.URL.RawPath
+		} else {
+			gotRawPath = r.URL.Path
+		}
+		w.WriteHeader(200)
+		w.Write([]byte(`{}`))
+	}))
+	t.Cleanup(srv.Close)
+	c := NewClient("key", WithBaseURL(srv.URL), WithMaxRetries(0))
+
+	// Slashes inside the UUID should be percent-encoded (%2F), not treated as
+	// path separators that would split the route.
+	c.Services.Session("uuid/with/slashes").Stop(context.Background(), nil)
+	if containsAt(gotRawPath, "/uuid/with/slashes/") {
+		t.Errorf("RawPath %q has unencoded slashes inside UUID segment", gotRawPath)
 	}
 }
