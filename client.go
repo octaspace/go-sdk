@@ -1,103 +1,530 @@
-package sdk
+// Package octaspace provides a Go client library for the OctaSpace API.
+//
+// Basic usage:
+//
+//	client := octaspace.NewClient(os.Getenv("OCTA_API_KEY"))
+//	account, err := client.Accounts.Profile(ctx)
+//
+// The client is organized into resource sub-clients that mirror the API structure:
+//
+//	client.Accounts         – account profile, balance, wallet generation
+//	client.Nodes            – compute node listing and management
+//	client.Sessions         – active session listing
+//	client.Apps             – available application catalog
+//	client.Network          – network information
+//	client.Services.MR      – machine rental (compute)
+//	client.Services.VPN     – VPN service
+//	client.Services.Render  – render service
+//	client.Services.Session – per-session operations (info, logs, stop)
+//	client.IdleJobs         – idle job inspection
+//
+// All methods accept a [context.Context] as the first argument and return a
+// typed value and an error. Errors are one of the types defined in errors.go
+// and can be inspected with [errors.As] or the helper functions [IsNotFound],
+// [IsRateLimit], and [IsAuthError].
+package octaspace
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
+	"net/url"
+	"reflect"
+	"strings"
 	"time"
 )
 
-var BaseURL = "https://api.octa.space"
+// Version is the current SDK version, embedded in the default User-Agent header.
+const Version = "0.1.0"
 
-// Client is an HTTP client for the OctaSpace API.
+const (
+	defaultBaseURL    = "https://api.octa.space"
+	defaultTimeout    = 30 * time.Second
+	defaultMaxRetries = 2
+)
+
+// Retry tuning constants.
+const (
+	// maxBackoffShift caps the exponential backoff shift to avoid int overflow
+	// on high attempt counts. Base delay is capped at 500ms * 2^6 = 32s.
+	maxBackoffShift = 6
+	// maxRetryAfter caps a server-supplied Retry-After value so a hostile or
+	// misconfigured server cannot stall the client indefinitely.
+	maxRetryAfter = 60 * time.Second
+)
+
+// Logger is the interface for SDK diagnostic logging. It requires Debugf and
+// Errorf methods. The standard library [*log.Logger] does NOT satisfy this
+// interface directly — use [NewStdLogger] to wrap it.
+//
+// Example with the standard library:
+//
+//	l := log.New(os.Stderr, "[octaspace] ", log.LstdFlags)
+//	client := octaspace.NewClient(apiKey, octaspace.WithLogger(octaspace.NewStdLogger(l)))
+type Logger interface {
+	Debugf(format string, v ...any)
+	Errorf(format string, v ...any)
+}
+
+// stdLogAdapter wraps a Printf-compatible logger to satisfy [Logger].
+type stdLogAdapter struct {
+	printf func(string, ...any)
+}
+
+func (a *stdLogAdapter) Debugf(format string, v ...any) { a.printf(format, v...) }
+func (a *stdLogAdapter) Errorf(format string, v ...any) { a.printf(format, v...) }
+
+// NewStdLogger wraps a standard library [*log.Logger] (or any type with a
+// Printf method) into a [Logger] suitable for [WithLogger].
+// Both Debugf and Errorf are mapped to Printf.
+func NewStdLogger(l interface{ Printf(string, ...any) }) Logger {
+	return &stdLogAdapter{printf: l.Printf}
+}
+
+// config holds the resolved Client configuration.
+type config struct {
+	apiKey     string
+	baseURLs   []string // tried in order; failover on network-level errors
+	httpClient *http.Client
+	timeout    time.Duration // per-request SDK timeout applied via context
+	maxRetries int
+	logger     Logger
+	userAgent  string
+}
+
+// Option is a functional option for configuring a [Client].
+type Option func(*config)
+
+// WithBaseURL overrides the API base URL (default: https://api.octa.space).
+// Equivalent to WithBaseURLs([]string{baseURL}).
+func WithBaseURL(baseURL string) Option {
+	return func(c *config) {
+		u := strings.TrimSpace(baseURL)
+		u = strings.TrimRight(u, "/")
+		if u != "" {
+			c.baseURLs = []string{u}
+		}
+	}
+}
+
+// WithBaseURLs sets an ordered list of base URLs. The client tries each URL in
+// order and moves to the next only on network-level failures (connection refused,
+// DNS errors, TLS errors). HTTP errors (4xx, 5xx) are returned immediately without
+// failover. Empty or blank entries are ignored. If the list is empty after
+// filtering, the existing configuration is left unchanged.
+//
+// Example:
+//
+//	client := octaspace.NewClient(apiKey,
+//	    octaspace.WithBaseURLs([]string{
+//	        "https://api.octa.space",
+//	        "https://api-backup.octa.space",
+//	    }),
+//	)
+func WithBaseURLs(urls []string) Option {
+	return func(c *config) {
+		cleaned := make([]string, 0, len(urls))
+		for _, u := range urls {
+			u = strings.TrimSpace(u)
+			u = strings.TrimRight(u, "/")
+			if u != "" {
+				cleaned = append(cleaned, u)
+			}
+		}
+		if len(cleaned) > 0 {
+			c.baseURLs = cleaned
+		}
+	}
+}
+
+// WithHTTPClient replaces the default [http.Client]. The provided client is
+// used as-is and never mutated by the SDK; its Timeout (if any) still applies
+// in addition to the SDK's own context timeout from [WithTimeout].
+func WithHTTPClient(hc *http.Client) Option {
+	return func(c *config) {
+		if hc != nil {
+			c.httpClient = hc
+		}
+	}
+}
+
+// WithTimeout sets a per-request SDK timeout applied via [context.WithTimeout]
+// (default: 30s). Pass 0 to disable.
+//
+// The timeout is independent of any [http.Client.Timeout] set via [WithHTTPClient]
+// and the two compose — the shorter bound wins. Unlike a client-level Timeout,
+// WithTimeout is applied per logical SDK call, so it bounds the *total* time
+// including retries.
+func WithTimeout(d time.Duration) Option {
+	return func(c *config) { c.timeout = d }
+}
+
+// WithMaxRetries sets the maximum number of retry attempts for transient errors
+// (HTTP 429, 500, 502, 503, 504) on idempotent requests (default: 2).
+// Set to 0 to disable retries entirely.
+func WithMaxRetries(n int) Option {
+	return func(c *config) {
+		if n < 0 {
+			n = 0
+		}
+		c.maxRetries = n
+	}
+}
+
+// WithLogger sets a [Logger] for request/response diagnostics.
+// Requests and responses are logged at Debug level; transport errors at Error level.
+func WithLogger(l Logger) Option {
+	return func(c *config) { c.logger = l }
+}
+
+// WithUserAgent overrides the User-Agent header sent with every request.
+func WithUserAgent(ua string) Option {
+	return func(c *config) { c.userAgent = ua }
+}
+
+// Client is an authenticated HTTP client for the OctaSpace API.
+// It is safe for concurrent use. Create one with [NewClient].
 type Client struct {
-	apiKey string
-	http   *http.Client
+	cfg      *config
+	Accounts *AccountsResource
+	Nodes    *NodesResource
+	Sessions *SessionsResource
+	Apps     *AppsResource
+	Network  *NetworkResource
+	Services *ServicesResource
+	IdleJobs *IdleJobsResource
 }
 
-// NewClient creates a new API client authenticated with the given API key.
-func NewClient(apiKey string) *Client {
-	return &Client{
-		apiKey: apiKey,
-		http:   &http.Client{Timeout: 30 * time.Second},
+// newDefaultTransport returns an http.Transport tuned for SDK use:
+// connection pooling with up to 10 idle connections per host.
+func newDefaultTransport() http.RoundTripper {
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.MaxIdleConnsPerHost = 10
+	return t
+}
+
+// NewClient creates a new OctaSpace API client authenticated with apiKey.
+// Pass an empty string to use only unauthenticated public endpoints (e.g. Network.Info).
+func NewClient(apiKey string, opts ...Option) *Client {
+	cfg := &config{
+		apiKey:     apiKey,
+		baseURLs:   []string{defaultBaseURL},
+		httpClient: &http.Client{Transport: newDefaultTransport()},
+		timeout:    defaultTimeout,
+		maxRetries: defaultMaxRetries,
+		userAgent:  "octaspace-go/" + Version,
+	}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+	c := &Client{cfg: cfg}
+	c.Accounts = &AccountsResource{c}
+	c.Nodes = &NodesResource{c}
+	c.Sessions = &SessionsResource{c}
+	c.Apps = &AppsResource{c}
+	c.Network = &NetworkResource{c}
+	c.Services = &ServicesResource{
+		c:      c,
+		MR:     &MachineRentalResource{c},
+		VPN:    &VPNResource{c},
+		Render: &RenderResource{c},
+	}
+	c.IdleJobs = &IdleJobsResource{c}
+	return c
+}
+
+// ---- internal transport ----
+
+// timeoutCtx wraps ctx with the SDK-configured per-request timeout.
+// Returns ctx unchanged (with a no-op cancel) when timeout is 0.
+func (c *Client) timeoutCtx(ctx context.Context) (context.Context, context.CancelFunc) {
+	if c.cfg.timeout > 0 {
+		return context.WithTimeout(ctx, c.cfg.timeout)
+	}
+	return ctx, func() {}
+}
+
+// get performs a GET request with optional query parameters and JSON-decodes
+// the response into dst. Pass nil params or dst to omit them.
+// Retries transient failures (429, 5xx) and fails over to backup hosts on
+// network-level errors.
+func (c *Client) get(ctx context.Context, path string, params url.Values, dst any) error {
+	ctx, cancel := c.timeoutCtx(ctx)
+	defer cancel()
+	return c.withRetry(ctx, http.MethodGet, func() error {
+		return c.do(ctx, http.MethodGet, path, params, nil, dst)
+	})
+}
+
+// post performs a POST request, JSON-encodes body (if non-nil), and decodes the
+// response into dst (if non-nil). POST is never retried or failed-over
+// automatically — it always targets the first base URL only. This prevents
+// duplicate side-effects when a request reaches the server but the response
+// connection fails.
+func (c *Client) post(ctx context.Context, path string, body, dst any) error {
+	ctx, cancel := c.timeoutCtx(ctx)
+	defer cancel()
+	return c.doNoFailover(ctx, http.MethodPost, path, nil, body, dst)
+}
+
+// patch performs a PATCH request. Arguments work the same as post.
+// PATCH is never retried or failed-over automatically.
+func (c *Client) patch(ctx context.Context, path string, body, dst any) error {
+	ctx, cancel := c.timeoutCtx(ctx)
+	defer cancel()
+	return c.doNoFailover(ctx, http.MethodPatch, path, nil, body, dst)
+}
+
+// getRaw performs a GET request and returns the raw response body bytes without
+// JSON decoding. Used for binary responses (logs, ident files).
+// Retries transient failures and fails over to backup hosts on network errors.
+func (c *Client) getRaw(ctx context.Context, path string) ([]byte, error) {
+	ctx, cancel := c.timeoutCtx(ctx)
+	defer cancel()
+	var body []byte
+	err := c.withRetry(ctx, http.MethodGet, func() error {
+		return c.failover(func(baseURL string) error {
+			var ierr error
+			body, ierr = c.doRawOnce(ctx, path, baseURL)
+			return ierr
+		})
+	})
+	return body, err
+}
+
+// withRetry runs fn and retries it on retryable transport/API errors.
+// Only idempotent methods (GET, HEAD) are retried, and only on HTTP 429/5xx.
+func (c *Client) withRetry(ctx context.Context, method string, fn func() error) error {
+	for attempt := 0; ; attempt++ {
+		err := fn()
+		if err == nil {
+			return nil
+		}
+		if attempt >= c.cfg.maxRetries {
+			return err
+		}
+		var apiErr *APIError
+		if !errors.As(err, &apiErr) || !isRetryable(method, apiErr.StatusCode) {
+			return err
+		}
+		delay := retryDelay(attempt, apiErr.RetryAfter)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(delay):
+		}
 	}
 }
 
-func (c *Client) get(path string, dst any) error {
-	req, err := http.NewRequest(http.MethodGet, BaseURL+path, nil)
-	if err != nil {
+// failover tries fn against each configured base URL in order.
+// It moves to the next URL only on network-level errors ([*NetworkError]).
+// HTTP errors (4xx, 5xx) are returned immediately without failover.
+// If all URLs fail, returns the last error wrapped with context.
+func (c *Client) failover(fn func(baseURL string) error) error {
+	var lastErr error
+	for i, baseURL := range c.cfg.baseURLs {
+		if i > 0 && c.cfg.logger != nil {
+			c.cfg.logger.Debugf("octaspace: host %s unreachable, failing over to %s",
+				c.cfg.baseURLs[i-1], baseURL)
+		}
+		err := fn(baseURL)
+		if err == nil {
+			return nil
+		}
+		var netErr *NetworkError
+		if errors.As(err, &netErr) {
+			lastErr = err
+			continue
+		}
 		return err
 	}
-	req.Header.Set("authorization", c.apiKey)
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return fmt.Errorf("request failed: %w", err)
+	if len(c.cfg.baseURLs) > 1 {
+		return fmt.Errorf("octaspace: all hosts unreachable: %w", lastErr)
 	}
-	defer resp.Body.Close()
+	return lastErr
+}
+
+// do marshals body once, then tries each configured base URL via failover.
+// Used only for idempotent methods (GET).
+func (c *Client) do(ctx context.Context, method, path string, params url.Values, body, dst any) error {
+	var bodyData []byte
+	if !isNilValue(body) {
+		var err error
+		bodyData, err = json.Marshal(body)
+		if err != nil {
+			return fmt.Errorf("octaspace: marshal request body: %w", err)
+		}
+	}
+	return c.failover(func(baseURL string) error {
+		return c.doOnce(ctx, method, path, params, bodyData, dst, baseURL)
+	})
+}
+
+// doNoFailover marshals body and sends the request to the first base URL only.
+// Used for non-idempotent methods (POST, PATCH) to prevent duplicate requests
+// when the server processes the request but the response connection drops.
+func (c *Client) doNoFailover(ctx context.Context, method, path string, params url.Values, body, dst any) error {
+	var bodyData []byte
+	if !isNilValue(body) {
+		var err error
+		bodyData, err = json.Marshal(body)
+		if err != nil {
+			return fmt.Errorf("octaspace: marshal request body: %w", err)
+		}
+	}
+	return c.doOnce(ctx, method, path, params, bodyData, dst, c.cfg.baseURLs[0])
+}
+
+// doOnce executes a single HTTP round-trip against the given baseURL.
+// bodyData must already be JSON-encoded (or nil for requests without a body).
+func (c *Client) doOnce(ctx context.Context, method, path string, params url.Values, bodyData []byte, dst any, baseURL string) error {
+	var bodyReader io.Reader
+	if bodyData != nil {
+		bodyReader = bytes.NewReader(bodyData)
+	}
+
+	rawURL := baseURL + path
+	if len(params) > 0 {
+		rawURL += "?" + params.Encode()
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, rawURL, bodyReader)
+	if err != nil {
+		return fmt.Errorf("octaspace: build request: %w", err)
+	}
+	req.Header.Set("User-Agent", c.cfg.userAgent)
+	req.Header.Set("Accept", "application/json")
+	if c.cfg.apiKey != "" {
+		req.Header.Set("Authorization", c.cfg.apiKey)
+	}
+	if bodyReader != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	start := time.Now()
+	resp, err := c.cfg.httpClient.Do(req)
+	elapsed := time.Since(start)
+
+	if err != nil {
+		if c.cfg.logger != nil {
+			c.cfg.logger.Errorf("octaspace: %s %s failed after %dms: %v",
+				method, path, elapsed.Milliseconds(), err)
+		}
+		return &NetworkError{Err: err}
+	}
+	defer resp.Body.Close() //nolint:errcheck
+
+	if c.cfg.logger != nil {
+		c.cfg.logger.Debugf("octaspace: %s %s -> %d (%dms)",
+			method, path, resp.StatusCode, elapsed.Milliseconds())
+	}
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("octaspace: read response: %w", err)
+	}
+	if resp.StatusCode >= 400 {
+		return errorFromResponse(resp, respBody)
+	}
+	if dst == nil {
+		return nil
+	}
+	if err := json.Unmarshal(respBody, dst); err != nil {
+		return fmt.Errorf("octaspace: decode response: %w", err)
+	}
+	return nil
+}
+
+// doRawOnce executes a single raw GET request against baseURL without JSON decoding.
+func (c *Client) doRawOnce(ctx context.Context, path, baseURL string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("octaspace: build request: %w", err)
+	}
+	req.Header.Set("User-Agent", c.cfg.userAgent)
+	req.Header.Set("Accept", "*/*")
+	if c.cfg.apiKey != "" {
+		req.Header.Set("Authorization", c.cfg.apiKey)
+	}
+
+	start := time.Now()
+	resp, err := c.cfg.httpClient.Do(req)
+	elapsed := time.Since(start)
+	if err != nil {
+		if c.cfg.logger != nil {
+			c.cfg.logger.Errorf("octaspace: GET %s failed after %dms: %v",
+				path, elapsed.Milliseconds(), err)
+		}
+		return nil, &NetworkError{Err: err}
+	}
+	defer resp.Body.Close() //nolint:errcheck
+	if c.cfg.logger != nil {
+		c.cfg.logger.Debugf("octaspace: GET %s -> %d (%dms)",
+			path, resp.StatusCode, elapsed.Milliseconds())
+	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("octaspace: read response: %w", err)
 	}
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("API error %d: %s", resp.StatusCode, body)
-	}
-	return json.Unmarshal(body, dst)
-}
-
-func (c *Client) getRaw(path string) ([]byte, error) {
-	req, err := http.NewRequest(http.MethodGet, BaseURL+path, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("authorization", c.apiKey)
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, body)
+	if resp.StatusCode >= 400 {
+		return nil, errorFromResponse(resp, body)
 	}
 	return body, nil
 }
 
-func (c *Client) post(path string, reqBody, dst any) error {
-	data, err := json.Marshal(reqBody)
-	if err != nil {
-		return err
+// isNilValue reports whether v is nil, including typed-nil pointers, maps,
+// slices, channels, and function values. This prevents the "typed-nil body"
+// footgun where a nil *T passed as any would marshal to "null".
+func isNilValue(v any) bool {
+	if v == nil {
+		return true
 	}
-	req, err := http.NewRequest(http.MethodPost, BaseURL+path, bytes.NewReader(data))
-	if err != nil {
-		return err
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Ptr, reflect.Map, reflect.Slice, reflect.Interface, reflect.Chan, reflect.Func:
+		return rv.IsNil()
 	}
-	req.Header.Set("authorization", c.apiKey)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
+	return false
+}
 
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return fmt.Errorf("request failed: %w", err)
+// isRetryable reports whether a failed request should be retried.
+// Only idempotent methods (GET, HEAD) on transient status codes are retried.
+func isRetryable(method string, statusCode int) bool {
+	if method != http.MethodGet && method != http.MethodHead {
+		return false
 	}
-	defer resp.Body.Close()
+	switch statusCode {
+	case 429, 500, 502, 503, 504:
+		return true
+	}
+	return false
+}
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
+// retryDelay returns how long to wait before the next retry attempt.
+// It honours the Retry-After header value when present (capped at maxRetryAfter),
+// otherwise uses exponential backoff with jitter: 500ms, 1s, 2s, … (±25% jitter).
+// Backoff is capped at attempt=maxBackoffShift to avoid int overflow.
+func retryDelay(attempt, retryAfterSeconds int) time.Duration {
+	if retryAfterSeconds > 0 {
+		d := time.Duration(retryAfterSeconds) * time.Second
+		if d > maxRetryAfter {
+			d = maxRetryAfter
+		}
+		return d
 	}
-	if resp.StatusCode >= 400 {
-		return fmt.Errorf("API error %d: %s", resp.StatusCode, body)
+	if attempt < 0 {
+		attempt = 0
 	}
-	return json.Unmarshal(body, dst)
+	if attempt > maxBackoffShift {
+		attempt = maxBackoffShift
+	}
+	base := 500 * time.Millisecond * time.Duration(1<<attempt)
+	jitter := time.Duration(rand.Int63n(int64(base / 4))) //nolint:gosec // G404: jitter for retry backoff does not need crypto/rand
+	return base + jitter
 }

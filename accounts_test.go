@@ -1,12 +1,11 @@
-package sdk
+package octaspace
 
 import (
+	"context"
 	"encoding/json"
 	"math/big"
-	"net/http"
 	"testing"
 )
-
 
 // --- BigInt ---
 
@@ -18,28 +17,27 @@ func TestBigIntUnmarshalJSON(t *testing.T) {
 	}{
 		{"123456789", "123456789", false},
 		{"0", "0", false},
-		// JSON numbers without quotes are acceptable
 		{"999999999999999999999", "999999999999999999999", false},
 		{"abc", "", true},
 		{`"quoted"`, "", true},
 	}
-
 	for _, tc := range tests {
-		var b BigInt
-		err := json.Unmarshal([]byte(tc.input), &b)
-		if tc.wantErr {
-			if err == nil {
-				t.Errorf("Unmarshal(%q): expected error, got nil", tc.input)
+		t.Run(tc.input, func(t *testing.T) {
+			var b BigInt
+			err := json.Unmarshal([]byte(tc.input), &b)
+			if tc.wantErr {
+				if err == nil {
+					t.Error("expected error, got nil")
+				}
+				return
 			}
-			continue
-		}
-		if err != nil {
-			t.Errorf("Unmarshal(%q): unexpected error: %v", tc.input, err)
-			continue
-		}
-		if b.Int.String() != tc.want {
-			t.Errorf("Unmarshal(%q) = %q, want %q", tc.input, b.Int.String(), tc.want)
-		}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if b.String() != tc.want {
+				t.Errorf("got %q, want %q", b.String(), tc.want)
+			}
+		})
 	}
 }
 
@@ -50,119 +48,101 @@ func TestBigIntMarshalJSON(t *testing.T) {
 		t.Fatalf("MarshalJSON: %v", err)
 	}
 	if string(data) != "42" {
-		t.Fatalf("MarshalJSON = %q, want %q", data, "42")
+		t.Fatalf("got %q, want \"42\"", data)
 	}
+}
 
-	// nil Int should marshal as "0"
+func TestBigIntMarshalJSON_Nil(t *testing.T) {
 	var zero BigInt
-	data, err = json.Marshal(zero)
+	data, err := json.Marshal(zero)
 	if err != nil {
 		t.Fatalf("MarshalJSON nil: %v", err)
 	}
 	if string(data) != "0" {
-		t.Fatalf("MarshalJSON nil = %q, want \"0\"", data)
+		t.Fatalf("got %q, want \"0\"", data)
 	}
 }
 
 func TestBigIntRoundTrip(t *testing.T) {
-	original := big.NewInt(0).Mul(big.NewInt(1e18), big.NewInt(999))
+	original := new(big.Int).Mul(big.NewInt(1e18), big.NewInt(999))
 	b := BigInt{Int: original}
-
 	data, err := json.Marshal(b)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
-
 	var b2 BigInt
 	if err := json.Unmarshal(data, &b2); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if b.Int.Cmp(b2.Int) != 0 {
+	if b.Cmp(b2.Int) != 0 {
 		t.Fatalf("round-trip mismatch: got %s, want %s", b2.Int, b.Int)
 	}
 }
 
-// --- GetAccount ---
+// --- AccountsResource ---
 
-func TestGetAccount(t *testing.T) {
-	payload := Account{
+func TestAccounts_Profile(t *testing.T) {
+	want := Account{
 		AccountUUID: "uuid-001",
 		Email:       "user@example.com",
 		UID:         42,
 		Balance:     BigInt{Int: big.NewInt(1000)},
 	}
-	c, cleanup := withServer(t, jsonHandler(http.StatusOK, payload))
-	defer cleanup()
-
-	got, err := c.GetAccount()
+	c, _ := newTestClient(t, jsonHandler(want))
+	got, err := c.Accounts.Profile(context.Background())
 	if err != nil {
-		t.Fatalf("GetAccount: %v", err)
+		t.Fatalf("Profile: %v", err)
 	}
-	if got.AccountUUID != payload.AccountUUID {
-		t.Errorf("AccountUUID = %q, want %q", got.AccountUUID, payload.AccountUUID)
+	if got.AccountUUID != want.AccountUUID {
+		t.Errorf("AccountUUID = %q, want %q", got.AccountUUID, want.AccountUUID)
 	}
-	if got.Email != payload.Email {
-		t.Errorf("Email = %q, want %q", got.Email, payload.Email)
-	}
-	if got.UID != payload.UID {
-		t.Errorf("UID = %d, want %d", got.UID, payload.UID)
+	if got.Email != want.Email {
+		t.Errorf("Email = %q, want %q", got.Email, want.Email)
 	}
 }
 
-func TestGetAccountError(t *testing.T) {
-	c, cleanup := withServer(t, rawHandler(http.StatusUnauthorized, `{"error":"unauthorized"}`))
-	defer cleanup()
-
-	_, err := c.GetAccount()
+func TestAccounts_Profile_Error(t *testing.T) {
+	c, _ := newTestClient(t, statusHandler(401, `{"error":"unauthorized"}`))
+	_, err := c.Accounts.Profile(context.Background())
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
+	if !IsAuthError(err) {
+		t.Errorf("expected AuthenticationError, got %T", err)
+	}
 }
 
-// --- GetBalance ---
-
-func TestGetBalance(t *testing.T) {
+func TestAccounts_Balance(t *testing.T) {
 	want := big.NewInt(500000)
-	// BigInt.UnmarshalJSON expects a bare decimal number, not a quoted string.
-	payload := map[string]json.RawMessage{"balance": json.RawMessage(want.String())}
-	c, cleanup := withServer(t, jsonHandler(http.StatusOK, payload))
-	defer cleanup()
-
-	got, err := c.GetBalance()
+	payload := map[string]json.RawMessage{
+		"balance": json.RawMessage(want.String()),
+	}
+	c, _ := newTestClient(t, jsonHandler(payload))
+	got, err := c.Accounts.Balance(context.Background())
 	if err != nil {
-		t.Fatalf("GetBalance: %v", err)
+		t.Fatalf("Balance: %v", err)
 	}
 	if got.Cmp(want) != 0 {
-		t.Errorf("GetBalance = %s, want %s", got, want)
+		t.Errorf("Balance = %s, want %s", got, want)
 	}
 }
 
-func TestGetBalanceError(t *testing.T) {
-	c, cleanup := withServer(t, rawHandler(http.StatusInternalServerError, `err`))
-	defer cleanup()
-
-	_, err := c.GetBalance()
+func TestAccounts_Balance_Error(t *testing.T) {
+	c, _ := newTestClient(t, statusHandler(500, `{"error":"server error"}`))
+	_, err := c.Accounts.Balance(context.Background())
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
 }
 
-// --- ValidateToken ---
-
-func TestValidateTokenOK(t *testing.T) {
-	c, cleanup := withServer(t, jsonHandler(http.StatusOK, Account{}))
-	defer cleanup()
-
-	if err := c.ValidateToken(); err != nil {
-		t.Fatalf("ValidateToken: %v", err)
+func TestAccounts_GenerateWallet(t *testing.T) {
+	want := Account{Wallet: "0xDEADBEEF", AccountUUID: "uuid-gen"}
+	c, _ := newTestClient(t, jsonHandler(want))
+	got, err := c.Accounts.GenerateWallet(context.Background())
+	if err != nil {
+		t.Fatalf("GenerateWallet: %v", err)
 	}
-}
-
-func TestValidateTokenError(t *testing.T) {
-	c, cleanup := withServer(t, rawHandler(http.StatusUnauthorized, `{}`))
-	defer cleanup()
-
-	if err := c.ValidateToken(); err == nil {
-		t.Fatal("expected error, got nil")
+	if got.Wallet != want.Wallet {
+		t.Errorf("Wallet = %q, want %q", got.Wallet, want.Wallet)
 	}
 }

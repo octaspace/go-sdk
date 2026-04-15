@@ -1,0 +1,47 @@
+version: "2"
+
+formatters:
+  enable:
+    - gofmt
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
+    - errorlint
+    - nilerr
+    - revive
+    - gosec
+    - bodyclose
+
+  settings:
+    errcheck:
+      # Ignore common patterns where checking the error adds no value.
+      exclude-functions:
+        # httptest response writers — write errors are irrelevant in tests.
+        - (net/http.ResponseWriter).Write
+        # json.Encoder.Encode — encoding to an in-memory buffer won't fail.
+        - (*encoding/json.Encoder).Encode
+
+  exclusions:
+    rules:
+      # Test files intentionally discard errors from SDK calls used only to
+      # exercise HTTP paths (e.g. c.Network.Info to check auth header).
+      - path: "_test\\.go$"
+        linters: [errcheck]
+
+      # Example functions are kept concise; error handling is omitted by design.
+      - path: "example_test\\.go$"
+        linters: [errcheck]
+
+      # gosec: httptest servers in tests use unvalidated URLs by design.
+      - path: "_test\\.go$"
+        linters: [gosec]
+
+      # gosec: example_test.go serves compile-only demos, not production code.
+      - path: "example_test\\.go$"
+        linters: [gosec]

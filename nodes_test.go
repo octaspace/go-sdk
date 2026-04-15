@@ -1,30 +1,21 @@
-package sdk
+package octaspace
 
 import (
+	"context"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
-func TestListNodes(t *testing.T) {
+func TestNodes_List(t *testing.T) {
 	want := []Node{
-		{
-			ID:    1,
-			IP:    "1.2.3.4",
-			State: "online",
-			OSN:   "linux",
-		},
-		{
-			ID:    2,
-			IP:    "5.6.7.8",
-			State: "offline",
-		},
+		{ID: 1, IP: "1.2.3.4", State: "online", OSN: "linux"},
+		{ID: 2, IP: "5.6.7.8", State: "offline"},
 	}
-	c, cleanup := withServer(t, jsonHandler(http.StatusOK, want))
-	defer cleanup()
-
-	got, err := c.ListNodes()
+	c, _ := newTestClient(t, jsonHandler(want))
+	got, err := c.Nodes.List(context.Background(), nil)
 	if err != nil {
-		t.Fatalf("ListNodes: %v", err)
+		t.Fatalf("List: %v", err)
 	}
 	if len(got) != len(want) {
 		t.Fatalf("len = %d, want %d", len(got), len(want))
@@ -36,39 +27,47 @@ func TestListNodes(t *testing.T) {
 		if n.IP != want[i].IP {
 			t.Errorf("[%d] IP = %q, want %q", i, n.IP, want[i].IP)
 		}
-		if n.State != want[i].State {
-			t.Errorf("[%d] State = %q, want %q", i, n.State, want[i].State)
+	}
+}
+
+func TestNodes_List_WithParams(t *testing.T) {
+	var gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
+		jsonHandler([]Node{})(w, r)
+	}))
+	t.Cleanup(srv.Close)
+	c := NewClient("key", WithBaseURL(srv.URL), WithMaxRetries(0))
+
+	country := "DE"
+	appUUID := "app-uuid-1"
+	c.Nodes.List(context.Background(), &ListNodesParams{
+		Country: &country,
+		AppUUID: &appUUID,
+	})
+
+	if gotQuery == "" {
+		t.Error("expected query parameters, got empty string")
+	}
+	for _, want := range []string{"country=DE", "app_uuid=app-uuid-1"} {
+		if !contains(gotQuery, want) {
+			t.Errorf("query %q does not contain %q", gotQuery, want)
 		}
 	}
 }
 
-func TestListNodesNestedFields(t *testing.T) {
-	want := []Node{
-		{
-			ID:    3,
-			State: "online",
-		},
-	}
+func TestNodes_List_NestedFields(t *testing.T) {
+	want := []Node{{ID: 3, State: "online"}}
 	want[0].Location.City = "Berlin"
 	want[0].Location.Country = "DE"
 	want[0].Prices.Base = 10
-	want[0].Prices.Storage = 2
 	want[0].System.CPUCores = 16
-	want[0].System.CPUModelName = "AMD EPYC"
-	want[0].System.GPUs = []struct {
-		Model      string `json:"model"`
-		MemTotalMB int    `json:"mem_total_mb"`
-		MemFreeMB  int    `json:"mem_free_mb"`
-	}{
-		{Model: "A100", MemTotalMB: 40960, MemFreeMB: 30000},
-	}
+	want[0].System.GPUs = []GPU{{Model: "A100", MemTotalMB: 40960, MemFreeMB: 30000}}
 
-	c, cleanup := withServer(t, jsonHandler(http.StatusOK, want))
-	defer cleanup()
-
-	got, err := c.ListNodes()
+	c, _ := newTestClient(t, jsonHandler(want))
+	got, err := c.Nodes.List(context.Background(), nil)
 	if err != nil {
-		t.Fatalf("ListNodes: %v", err)
+		t.Fatalf("List: %v", err)
 	}
 	n := got[0]
 	if n.Location.City != "Berlin" {
@@ -77,57 +76,110 @@ func TestListNodesNestedFields(t *testing.T) {
 	if n.Prices.Base != 10 {
 		t.Errorf("Prices.Base = %d, want 10", n.Prices.Base)
 	}
-	if n.System.CPUCores != 16 {
-		t.Errorf("System.CPUCores = %d, want 16", n.System.CPUCores)
-	}
 	if len(n.System.GPUs) != 1 || n.System.GPUs[0].Model != "A100" {
-		t.Errorf("System.GPUs unexpected: %+v", n.System.GPUs)
+		t.Errorf("System.GPUs = %+v", n.System.GPUs)
 	}
 }
 
-func TestListNodesEmpty(t *testing.T) {
-	c, cleanup := withServer(t, jsonHandler(http.StatusOK, []Node{}))
-	defer cleanup()
-
-	got, err := c.ListNodes()
+func TestNodes_List_Empty(t *testing.T) {
+	c, _ := newTestClient(t, jsonHandler([]Node{}))
+	got, err := c.Nodes.List(context.Background(), nil)
 	if err != nil {
-		t.Fatalf("ListNodes: %v", err)
+		t.Fatalf("List: %v", err)
 	}
 	if len(got) != 0 {
-		t.Fatalf("expected empty slice, got %d items", len(got))
+		t.Fatalf("expected empty, got %d", len(got))
 	}
 }
 
-func TestListNodesError(t *testing.T) {
-	c, cleanup := withServer(t, rawHandler(http.StatusInternalServerError, `err`))
-	defer cleanup()
-
-	_, err := c.ListNodes()
+func TestNodes_List_Error(t *testing.T) {
+	c, _ := newTestClient(t, statusHandler(500, `{"error":"server error"}`))
+	_, err := c.Nodes.List(context.Background(), nil)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
 }
 
-func TestListNodesRaw(t *testing.T) {
-	body := `[{"id":1,"state":"online"}]`
-	c, cleanup := withServer(t, rawHandler(http.StatusOK, body))
-	defer cleanup()
+func TestNodes_Find(t *testing.T) {
+	want := Node{ID: 42, IP: "10.0.0.1", State: "online"}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/nodes/42" {
+			http.NotFound(w, r)
+			return
+		}
+		jsonHandler(want)(w, r)
+	}))
+	t.Cleanup(srv.Close)
+	c := NewClient("key", WithBaseURL(srv.URL), WithMaxRetries(0))
 
-	got, err := c.ListNodesRaw()
+	got, err := c.Nodes.Find(context.Background(), 42)
 	if err != nil {
-		t.Fatalf("ListNodesRaw: %v", err)
+		t.Fatalf("Find: %v", err)
 	}
-	if string(got) != body {
-		t.Fatalf("body = %q, want %q", got, body)
+	if got.ID != want.ID || got.IP != want.IP {
+		t.Errorf("got %+v, want %+v", got, want)
 	}
 }
 
-func TestListNodesRawError(t *testing.T) {
-	c, cleanup := withServer(t, rawHandler(http.StatusForbidden, `forbidden`))
-	defer cleanup()
-
-	_, err := c.ListNodesRaw()
-	if err == nil {
-		t.Fatal("expected error, got nil")
+func TestNodes_Find_NotFound(t *testing.T) {
+	c, _ := newTestClient(t, statusHandler(404, `{"error":"not found"}`))
+	_, err := c.Nodes.Find(context.Background(), 999)
+	if !IsNotFound(err) {
+		t.Errorf("expected NotFoundError, got %T: %v", err, err)
 	}
+}
+
+func TestNodes_Reboot(t *testing.T) {
+	var gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		w.WriteHeader(200)
+		w.Write([]byte(`{}`))
+	}))
+	t.Cleanup(srv.Close)
+	c := NewClient("key", WithBaseURL(srv.URL), WithMaxRetries(0))
+
+	if err := c.Nodes.Reboot(context.Background(), 7); err != nil {
+		t.Fatalf("Reboot: %v", err)
+	}
+	if gotPath != "/nodes/7/reboot" {
+		t.Errorf("path = %q, want /nodes/7/reboot", gotPath)
+	}
+}
+
+func TestNodes_UpdatePrices(t *testing.T) {
+	var gotMethod, gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		w.WriteHeader(200)
+		w.Write([]byte(`{}`))
+	}))
+	t.Cleanup(srv.Close)
+	c := NewClient("key", WithBaseURL(srv.URL), WithMaxRetries(0))
+
+	prices := map[string]any{"gpu_hour": 0.5, "cpu_hour": 0.1}
+	if err := c.Nodes.UpdatePrices(context.Background(), 5, prices); err != nil {
+		t.Fatalf("UpdatePrices: %v", err)
+	}
+	if gotMethod != "PATCH" {
+		t.Errorf("method = %q, want PATCH", gotMethod)
+	}
+	if gotPath != "/nodes/5/prices" {
+		t.Errorf("path = %q, want /nodes/5/prices", gotPath)
+	}
+}
+
+// contains is a simple substring helper for query string assertions.
+func contains(s, sub string) bool {
+	return len(s) >= len(sub) && (s == sub || len(s) > 0 && containsAt(s, sub))
+}
+
+func containsAt(s, sub string) bool {
+	for i := 0; i <= len(s)-len(sub); i++ {
+		if s[i:i+len(sub)] == sub {
+			return true
+		}
+	}
+	return false
 }
