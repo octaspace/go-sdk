@@ -58,16 +58,32 @@ const (
 	maxRetryAfter = 60 * time.Second
 )
 
-// Logger is the interface for SDK diagnostic logging. It is satisfied by the
-// standard library [*log.Logger] and most structured logging libraries.
+// Logger is the interface for SDK diagnostic logging. It requires Debugf and
+// Errorf methods. The standard library [*log.Logger] does NOT satisfy this
+// interface directly — use [NewStdLogger] to wrap it.
 //
 // Example with the standard library:
 //
 //	l := log.New(os.Stderr, "[octaspace] ", log.LstdFlags)
-//	client := octaspace.NewClient(apiKey, octaspace.WithLogger(l))
+//	client := octaspace.NewClient(apiKey, octaspace.WithLogger(octaspace.NewStdLogger(l)))
 type Logger interface {
 	Debugf(format string, v ...any)
 	Errorf(format string, v ...any)
+}
+
+// stdLogAdapter wraps a Printf-compatible logger to satisfy [Logger].
+type stdLogAdapter struct {
+	printf func(string, ...any)
+}
+
+func (a *stdLogAdapter) Debugf(format string, v ...any) { a.printf(format, v...) }
+func (a *stdLogAdapter) Errorf(format string, v ...any) { a.printf(format, v...) }
+
+// NewStdLogger wraps a standard library [*log.Logger] (or any type with a
+// Printf method) into a [Logger] suitable for [WithLogger].
+// Both Debugf and Errorf are mapped to Printf.
+func NewStdLogger(l interface{ Printf(string, ...any) }) Logger {
+	return &stdLogAdapter{printf: l.Printf}
 }
 
 // config holds the resolved Client configuration.

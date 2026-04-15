@@ -113,7 +113,7 @@ func TestSessionProxy_Logs(t *testing.T) {
 	t.Cleanup(srv.Close)
 	c := NewClient("key", WithBaseURL(srv.URL), WithMaxRetries(0))
 
-	got, err := c.Services.Session("sess-logs").Logs(context.Background())
+	got, err := c.Services.Session("sess-logs").Logs(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("Logs: %v", err)
 	}
@@ -191,5 +191,42 @@ func TestSessionProxy_UUIDEncoding(t *testing.T) {
 	c.Services.Session("uuid/with/slashes").Stop(context.Background(), nil)
 	if containsAt(gotRawPath, "/uuid/with/slashes/") {
 		t.Errorf("RawPath %q has unencoded slashes inside UUID segment", gotRawPath)
+	}
+}
+
+func TestSessionProxy_Logs_RecentParam(t *testing.T) {
+	var gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
+		jsonHandler(SessionLogs{})(w, r)
+	}))
+	t.Cleanup(srv.Close)
+	c := NewClient("key", WithBaseURL(srv.URL), WithMaxRetries(0))
+
+	recent := true
+	_, err := c.Services.Session("sess-abc").Logs(context.Background(), &LogsParams{Recent: &recent})
+	if err != nil {
+		t.Fatalf("Logs: %v", err)
+	}
+	if gotQuery != "recent=true" {
+		t.Errorf("query = %q, want recent=true", gotQuery)
+	}
+}
+
+func TestSessionProxy_Logs_NilParams(t *testing.T) {
+	var gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
+		jsonHandler(SessionLogs{})(w, r)
+	}))
+	t.Cleanup(srv.Close)
+	c := NewClient("key", WithBaseURL(srv.URL), WithMaxRetries(0))
+
+	_, err := c.Services.Session("sess-abc").Logs(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("Logs: %v", err)
+	}
+	if gotQuery != "" {
+		t.Errorf("query = %q, want empty (active session)", gotQuery)
 	}
 }

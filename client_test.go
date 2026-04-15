@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -67,6 +70,23 @@ func TestClient_AuthorizationHeader(t *testing.T) {
 	c.Network.Info(context.Background())
 	if got != "test-key" {
 		t.Errorf("Authorization = %q, want %q", got, "test-key")
+	}
+}
+
+func TestClient_NoAuthorizationHeaderWhenAPIKeyEmpty(t *testing.T) {
+	var hasAuth bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, hasAuth = r.Header["Authorization"]
+		jsonHandler(map[string]any{})(w, r)
+	}))
+	t.Cleanup(srv.Close)
+
+	c := NewClient("", WithBaseURL(srv.URL), WithMaxRetries(0))
+	if _, err := c.Network.Info(context.Background()); err != nil {
+		t.Fatalf("Network.Info: %v", err)
+	}
+	if hasAuth {
+		t.Fatal("Authorization header is present for empty API key")
 	}
 }
 
@@ -375,4 +395,36 @@ func TestClient_ContentTypeOnPOST(t *testing.T) {
 	if gotCT != "application/json" {
 		t.Errorf("Content-Type = %q, want application/json", gotCT)
 	}
+}
+
+func TestNewStdLogger(t *testing.T) {
+	var logged string
+	// testPrintfer is a minimal Printf-compatible type.
+	tp := &testPrintfer{fn: func(format string, v ...any) {
+		logged = fmt.Sprintf(format, v...)
+	}}
+	logger := NewStdLogger(tp)
+	logger.Debugf("hello %s", "world")
+	if logged != "hello world" {
+		t.Errorf("Debugf: logged = %q, want %q", logged, "hello world")
+	}
+	logger.Errorf("err %d", 42)
+	if logged != "err 42" {
+		t.Errorf("Errorf: logged = %q, want %q", logged, "err 42")
+	}
+}
+
+type testPrintfer struct {
+	fn func(string, ...any)
+}
+
+func (p *testPrintfer) Printf(format string, v ...any) { p.fn(format, v...) }
+
+func TestNewStdLogger_WithRealLogLogger(t *testing.T) {
+	// Verify that *log.Logger satisfies the interface accepted by NewStdLogger.
+	l := log.New(io.Discard, "", 0)
+	logger := NewStdLogger(l)
+	// Should not panic.
+	logger.Debugf("test %s", "debug")
+	logger.Errorf("test %s", "error")
 }

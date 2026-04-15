@@ -34,8 +34,11 @@ func (r VPNRelay) UploadMbps() float64 { return normalizeNetMbits(r.NetUpMbits) 
 
 // VPNCreateParams holds parameters for creating a VPN session.
 type VPNCreateParams struct {
-	NodeID  int64  `json:"node_id"`
-	SubKind string `json:"subkind,omitempty"` // e.g. "wg", "openvpn", "ss", "v2ray"
+	NodeID         int64  `json:"node_id"`
+	SubKind        string `json:"subkind,omitempty"`        // e.g. "wg", "openvpn", "ss", "v2ray"
+	Protocol       string `json:"protocol,omitempty"`       // required when SubKind is "v2ray"
+	OrganizationID string `json:"organization_id,omitempty"`
+	ProjectID      string `json:"project_id,omitempty"`
 }
 
 // VPNCreateResponse is returned when a VPN session is created.

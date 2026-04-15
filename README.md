@@ -41,7 +41,8 @@ func main() {
         fmt.Fprintln(os.Stderr, err)
         os.Exit(1)
     }
-    fmt.Printf("Nodes online: %d\n", info["nodes"])
+    // info["nodes"] is an object like {"count":690,"vpn":147,...}, not an integer
+    fmt.Printf("Network info: %v\n", info)
 
     // Authenticated endpoint
     account, err := client.Accounts.Profile(ctx)
@@ -91,13 +92,13 @@ type Logger interface {
 }
 ```
 
-The standard library's `*log.Logger` satisfies this interface directly:
+The standard library's `*log.Logger` does **not** satisfy this interface directly (it has `Printf` but not `Debugf`/`Errorf`). Use the provided `NewStdLogger` adapter:
 
 ```go
 import "log"
 
 l := log.New(os.Stderr, "[octaspace] ", log.LstdFlags)
-client := octaspace.NewClient(apiKey, octaspace.WithLogger(l))
+client := octaspace.NewClient(apiKey, octaspace.WithLogger(octaspace.NewStdLogger(l)))
 ```
 
 ## Resources
@@ -275,6 +276,13 @@ resp, err := client.Services.VPN.Create(ctx, &octaspace.VPNCreateParams{
     SubKind: "wg",
 })
 // resp.UUID → use with Services.Session(uuid)
+
+// v2ray requires the Protocol field:
+resp, err = client.Services.VPN.Create(ctx, &octaspace.VPNCreateParams{
+    NodeID:   247,
+    SubKind:  "v2ray",
+    Protocol: "vmess",
+})
 ```
 
 ### Services — Render
@@ -302,8 +310,12 @@ proxy := client.Services.Session("550e8400-e29b-41d4-a716-446655440000")
 info, err := proxy.Info(ctx)
 fmt.Println(info.VPNConfig) // WireGuard/OpenVPN config — paste into wg0.conf
 
-// GET /services/:uuid/logs
-logs, err := proxy.Logs(ctx)
+// GET /services/:uuid/logs — active (current) session
+logs, err := proxy.Logs(ctx, nil)
+
+// GET /services/:uuid/logs?recent=true — finished (recent) session
+recent := true
+logs, err = proxy.Logs(ctx, &octaspace.LogsParams{Recent: &recent})
 
 // POST /services/:uuid/stop
 err := proxy.Stop(ctx, nil)

@@ -1,6 +1,9 @@
 package octaspace
 
-import "context"
+import (
+	"context"
+	"net/url"
+)
 
 // SessionInfo holds detailed information about a running service session.
 type SessionInfo struct {
@@ -19,6 +22,13 @@ type SessionLogs struct {
 		Msg string `json:"msg"`
 	} `json:"system"`
 	Container string `json:"container"`
+}
+
+// LogsParams holds optional parameters for fetching session logs.
+type LogsParams struct {
+	// Recent must be set to true to fetch logs for finished (recent) sessions.
+	// Active (current) sessions do not require this parameter.
+	Recent *bool
 }
 
 // StopParams holds optional parameters for stopping a session.
@@ -48,11 +58,19 @@ func (s *SessionProxy) Info(ctx context.Context) (*SessionInfo, error) {
 }
 
 // Logs returns system and container log output for the session.
+// Pass nil params for active (current) sessions. For finished (recent) sessions,
+// set recent := true and pass &LogsParams{Recent: &recent} — the API requires the recent=true
+// query parameter to return logs for sessions that are no longer running.
 //
 // GET /services/:uuid/logs
-func (s *SessionProxy) Logs(ctx context.Context) (*SessionLogs, error) {
+// GET /services/:uuid/logs?recent=true
+func (s *SessionProxy) Logs(ctx context.Context, params *LogsParams) (*SessionLogs, error) {
+	qp := url.Values{}
+	if params != nil && params.Recent != nil && *params.Recent {
+		qp.Set("recent", "true")
+	}
 	var logs SessionLogs
-	return &logs, s.c.get(ctx, "/services/"+s.uuid+"/logs", nil, &logs)
+	return &logs, s.c.get(ctx, "/services/"+s.uuid+"/logs", qp, &logs)
 }
 
 // Stop terminates the session. Pass nil params to stop without sending a body.

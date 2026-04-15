@@ -114,3 +114,82 @@ func TestVPN_Create_Error(t *testing.T) {
 	}
 	_ = valErr
 }
+
+func TestVPN_Create_V2RayWithProtocol(t *testing.T) {
+	var gotBody []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotBody, _ = readBody(r)
+		jsonHandler(VPNCreateResponse{UUID: "v2ray-uuid"})(w, r)
+	}))
+	t.Cleanup(srv.Close)
+	c := NewClient("key", WithBaseURL(srv.URL), WithMaxRetries(0))
+
+	resp, err := c.Services.VPN.Create(context.Background(), &VPNCreateParams{
+		NodeID:   42,
+		SubKind:  "v2ray",
+		Protocol: "vmess",
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if resp.UUID != "v2ray-uuid" {
+		t.Errorf("UUID = %q, want v2ray-uuid", resp.UUID)
+	}
+
+	var body map[string]any
+	json.Unmarshal(gotBody, &body)
+	if body["subkind"] != "v2ray" {
+		t.Errorf("subkind = %v, want v2ray", body["subkind"])
+	}
+	if body["protocol"] != "vmess" {
+		t.Errorf("protocol = %v, want vmess", body["protocol"])
+	}
+}
+
+func TestVPN_Create_OmitsEmptyOptionalFields(t *testing.T) {
+	var gotBody []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotBody, _ = readBody(r)
+		jsonHandler(VPNCreateResponse{UUID: "uuid"})(w, r)
+	}))
+	t.Cleanup(srv.Close)
+	c := NewClient("key", WithBaseURL(srv.URL), WithMaxRetries(0))
+
+	c.Services.VPN.Create(context.Background(), &VPNCreateParams{NodeID: 1, SubKind: "wg"})
+	var body map[string]any
+	json.Unmarshal(gotBody, &body)
+	if _, exists := body["protocol"]; exists {
+		t.Error("protocol should be omitted when empty")
+	}
+	if _, exists := body["organization_id"]; exists {
+		t.Error("organization_id should be omitted when empty")
+	}
+	if _, exists := body["project_id"]; exists {
+		t.Error("project_id should be omitted when empty")
+	}
+}
+
+func TestVPN_Create_WithOrganizationAndProject(t *testing.T) {
+	var gotBody []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotBody, _ = readBody(r)
+		jsonHandler(VPNCreateResponse{UUID: "org-uuid"})(w, r)
+	}))
+	t.Cleanup(srv.Close)
+	c := NewClient("key", WithBaseURL(srv.URL), WithMaxRetries(0))
+
+	c.Services.VPN.Create(context.Background(), &VPNCreateParams{
+		NodeID:         42,
+		SubKind:        "wg",
+		OrganizationID: "org-123",
+		ProjectID:      "proj-456",
+	})
+	var body map[string]any
+	json.Unmarshal(gotBody, &body)
+	if body["organization_id"] != "org-123" {
+		t.Errorf("organization_id = %v, want org-123", body["organization_id"])
+	}
+	if body["project_id"] != "proj-456" {
+		t.Errorf("project_id = %v, want proj-456", body["project_id"])
+	}
+}

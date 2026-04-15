@@ -27,38 +27,42 @@ import (
 
 // check describes a single smoke test case.
 type check struct {
-	id          string
-	label       string
-	method      string
-	path        string
+	id           string
+	label        string
+	method       string
+	path         string
 	requiresAuth bool
-	fn          func(ctx context.Context, c *octaspace.Client) (any, error)
+	fn           func(ctx context.Context, c *octaspace.Client) (any, error)
 }
 
 // result holds the outcome of running one check.
 type result struct {
-	ID          string `json:"id"`
-	Label       string `json:"label"`
-	Method      string `json:"method"`
-	Path        string `json:"path"`
+	ID           string `json:"id"`
+	Label        string `json:"label"`
+	Method       string `json:"method"`
+	Path         string `json:"path"`
 	RequiresAuth bool   `json:"requires_auth"`
-	Status      string `json:"status"` // "passed" | "failed" | "skipped"
-	DurationMs  int64  `json:"duration_ms"`
-	Summary     string `json:"summary,omitempty"`
-	Error       string `json:"error,omitempty"`
-	StatusCode  int    `json:"status_code,omitempty"`
+	Status       string `json:"status"` // "passed" | "failed" | "skipped"
+	DurationMs   int64  `json:"duration_ms"`
+	Summary      string `json:"summary,omitempty"`
+	Error        string `json:"error,omitempty"`
+	StatusCode   int    `json:"status_code,omitempty"`
 }
+
+type skippedError string
+
+func (e skippedError) Error() string { return string(e) }
 
 // smokeReport is the top-level JSON output.
 type smokeReport struct {
-	Kind      string  `json:"kind"`
-	Status    string  `json:"status"`
-	StartedAt string  `json:"started_at"`
-	DurationMs int64  `json:"duration_ms"`
-	BaseURL   string  `json:"base_url"`
-	Auth      string  `json:"auth"`
-	Summary   summary `json:"summary"`
-	Checks    []result `json:"checks"`
+	Kind       string   `json:"kind"`
+	Status     string   `json:"status"`
+	StartedAt  string   `json:"started_at"`
+	DurationMs int64    `json:"duration_ms"`
+	BaseURL    string   `json:"base_url"`
+	Auth       string   `json:"auth"`
+	Summary    summary  `json:"summary"`
+	Checks     []result `json:"checks"`
 }
 
 type summary struct {
@@ -97,7 +101,7 @@ var checks = []check{
 	},
 	{
 		id: "apps.list", label: "client.Apps.List",
-		method: "GET", path: "/apps", requiresAuth: true,
+		method: "GET", path: "/apps", requiresAuth: false,
 		fn: func(ctx context.Context, c *octaspace.Client) (any, error) {
 			return c.Apps.List(ctx)
 		},
@@ -119,14 +123,14 @@ var checks = []check{
 	},
 	{
 		id: "services.mr.list", label: "client.Services.MR.List",
-		method: "GET", path: "/services/mr", requiresAuth: true,
+		method: "GET", path: "/services/mr", requiresAuth: false,
 		fn: func(ctx context.Context, c *octaspace.Client) (any, error) {
 			return c.Services.MR.List(ctx, nil)
 		},
 	},
 	{
 		id: "services.vpn.list", label: "client.Services.VPN.List",
-		method: "GET", path: "/services/vpn", requiresAuth: true,
+		method: "GET", path: "/services/vpn", requiresAuth: false,
 		fn: func(ctx context.Context, c *octaspace.Client) (any, error) {
 			return c.Services.VPN.List(ctx, nil)
 		},
@@ -153,6 +157,76 @@ var checks = []check{
 			return c.Sessions.List(ctx, &octaspace.ListSessionsParams{Recent: &yes})
 		},
 	},
+	{
+		id: "services.session.info", label: "client.Services.Session.Info",
+		method: "GET", path: "/services/:uuid/info", requiresAuth: true,
+		fn: func(ctx context.Context, c *octaspace.Client) (any, error) {
+			uuid, err := firstActiveSessionUUID(ctx, c)
+			if err != nil {
+				return nil, err
+			}
+			if uuid == "" {
+				return nil, skippedError("no active sessions")
+			}
+			return c.Services.Session(uuid).Info(ctx)
+		},
+	},
+	{
+		id: "services.session.logs.active", label: "client.Services.Session.Logs(active)",
+		method: "GET", path: "/services/:uuid/logs", requiresAuth: true,
+		fn: func(ctx context.Context, c *octaspace.Client) (any, error) {
+			uuid, err := firstActiveSessionUUID(ctx, c)
+			if err != nil {
+				return nil, err
+			}
+			if uuid == "" {
+				return nil, skippedError("no active sessions")
+			}
+			return c.Services.Session(uuid).Logs(ctx, nil)
+		},
+	},
+	{
+		id: "services.session.logs.recent", label: "client.Services.Session.Logs(recent=true)",
+		method: "GET", path: "/services/:uuid/logs?recent=true", requiresAuth: true,
+		fn: func(ctx context.Context, c *octaspace.Client) (any, error) {
+			uuid, err := firstRecentSessionUUID(ctx, c)
+			if err != nil {
+				return nil, err
+			}
+			if uuid == "" {
+				return nil, skippedError("no recent sessions")
+			}
+			yes := true
+			return c.Services.Session(uuid).Logs(ctx, &octaspace.LogsParams{Recent: &yes})
+		},
+	},
+}
+
+// firstActiveSessionUUID returns the UUID of the first active session, or ""
+// if there are no active sessions.
+func firstActiveSessionUUID(ctx context.Context, c *octaspace.Client) (string, error) {
+	sessions, err := c.Sessions.List(ctx, nil)
+	if err != nil {
+		return "", err
+	}
+	if len(sessions) == 0 {
+		return "", nil
+	}
+	return sessions[0].UUID, nil
+}
+
+// firstRecentSessionUUID returns the UUID of the first recently finished session,
+// or "" if there are no recent sessions.
+func firstRecentSessionUUID(ctx context.Context, c *octaspace.Client) (string, error) {
+	yes := true
+	sessions, err := c.Sessions.List(ctx, &octaspace.ListSessionsParams{Recent: &yes})
+	if err != nil {
+		return "", err
+	}
+	if len(sessions) == 0 {
+		return "", nil
+	}
+	return sessions[0].UUID, nil
 }
 
 func main() {
@@ -201,17 +275,7 @@ func main() {
 
 	totalMs := time.Since(startedAt).Milliseconds()
 
-	var passed, failed, skipped int
-	for _, r := range results {
-		switch r.Status {
-		case "passed":
-			passed++
-		case "failed":
-			failed++
-		case "skipped":
-			skipped++
-		}
-	}
+	summary := countResults(results)
 
 	if *jsonOut {
 		authDesc := "none"
@@ -219,7 +283,7 @@ func main() {
 			authDesc = maskKey(apiKey)
 		}
 		status := "passed"
-		if failed > 0 {
+		if summary.Failed > 0 {
 			status = "failed"
 		}
 		report := smokeReport{
@@ -229,7 +293,7 @@ func main() {
 			DurationMs: totalMs,
 			BaseURL:    *baseURL,
 			Auth:       authDesc,
-			Summary:    summary{Total: len(results), Passed: passed, Failed: failed, Skipped: skipped},
+			Summary:    summary,
 			Checks:     results,
 		}
 		enc := json.NewEncoder(os.Stdout)
@@ -237,19 +301,35 @@ func main() {
 		enc.Encode(report)
 	} else {
 		fmt.Println()
-		fmt.Printf("Summary: %d/%d passed", passed, len(results)-skipped)
-		if failed > 0 {
-			fmt.Printf(", %d FAILED", failed)
+		fmt.Printf("Summary: %d/%d passed", summary.Passed, len(results)-summary.Skipped)
+		if summary.Failed > 0 {
+			fmt.Printf(", %d FAILED", summary.Failed)
 		}
-		if skipped > 0 {
-			fmt.Printf(", %d skipped (no auth)", skipped)
+		if summary.Skipped > 0 {
+			fmt.Printf(", %d skipped", summary.Skipped)
 		}
 		fmt.Printf("   total: %dms\n", totalMs)
 	}
 
-	if failed > 0 {
+	if summary.Failed > 0 {
 		os.Exit(1)
 	}
+}
+
+func countResults(results []result) summary {
+	var s summary
+	s.Total = len(results)
+	for _, r := range results {
+		switch r.Status {
+		case "passed":
+			s.Passed++
+		case "failed":
+			s.Failed++
+		case "skipped":
+			s.Skipped++
+		}
+	}
+	return s
 }
 
 // runCheck executes a single smoke check and returns its result.
@@ -264,6 +344,7 @@ func runCheck(ctx context.Context, c *octaspace.Client, chk check, hasAuth bool)
 
 	if chk.requiresAuth && !hasAuth {
 		r.Status = "skipped"
+		r.Summary = "no auth"
 		return r
 	}
 
@@ -272,6 +353,12 @@ func runCheck(ctx context.Context, c *octaspace.Client, chk check, hasAuth bool)
 	r.DurationMs = time.Since(start).Milliseconds()
 
 	if err != nil {
+		var skipped skippedError
+		if errors.As(err, &skipped) {
+			r.Status = "skipped"
+			r.Summary = string(skipped)
+			return r
+		}
 		r.Status = "failed"
 		r.Error = err.Error()
 		var apiErr *octaspace.APIError
@@ -302,8 +389,11 @@ func printResult(r result) {
 		}
 		fmt.Printf("\n          error: %s\n", r.Error)
 	case "skipped":
-		fmt.Printf("  [SKIP]  %-42s  %s  %4s   (no auth)\n",
-			r.Label, r.Method+" "+r.Path, "—")
+		fmt.Printf("  [SKIP]  %-42s  %s  %4s", r.Label, r.Method+" "+r.Path, "—")
+		if r.Summary != "" {
+			fmt.Printf("   %s", r.Summary)
+		}
+		fmt.Println()
 	}
 }
 
