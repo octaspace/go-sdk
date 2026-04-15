@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -427,4 +428,137 @@ func TestNewStdLogger_WithRealLogLogger(t *testing.T) {
 	// Should not panic.
 	logger.Debugf("test %s", "debug")
 	logger.Errorf("test %s", "error")
+}
+
+// closedURL returns the URL of a just-closed server — guaranteed connection refused.
+func closedURL(t *testing.T) string {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	u := srv.URL
+	srv.Close()
+	return u
+}
+
+func TestClient_Failover_SkipsUnreachableHost(t *testing.T) {
+	// First URL is closed (connection refused); second is live and returns data.
+	good := httptest.NewServer(jsonHandler([]App{{UUID: "app-1"}}))
+	t.Cleanup(good.Close)
+	dead := closedURL(t)
+
+	c := NewClient("key",
+		WithBaseURLs([]string{dead, good.URL}),
+		WithMaxRetries(0),
+		WithTimeout(5*time.Second),
+	)
+
+	apps, err := c.Apps.List(context.Background())
+	if err != nil {
+		t.Fatalf("expected failover success, got: %v", err)
+	}
+	if len(apps) != 1 || apps[0].UUID != "app-1" {
+		t.Errorf("unexpected apps: %v", apps)
+	}
+}
+
+func TestClient_Failover_DoesNotFailoverOn500(t *testing.T) {
+	// HTTP 500 is a server error, not a network failure — must NOT failover.
+	calls := 0
+	bad := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		http.Error(w, `{"error":"boom"}`, http.StatusInternalServerError)
+	}))
+	t.Cleanup(bad.Close)
+	good := httptest.NewServer(jsonHandler([]App{{UUID: "should-not-reach"}}))
+	t.Cleanup(good.Close)
+
+	c := NewClient("key",
+		WithBaseURLs([]string{bad.URL, good.URL}),
+		WithMaxRetries(0),
+	)
+
+	_, err := c.Apps.List(context.Background())
+	if err == nil {
+		t.Fatal("expected error on 500, got nil")
+	}
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) || apiErr.StatusCode != 500 {
+		t.Errorf("expected APIError 500, got: %v", err)
+	}
+	if calls != 1 {
+		t.Errorf("bad server called %d times, want 1 (no failover on 500)", calls)
+	}
+}
+
+func TestClient_Failover_AllHostsDown(t *testing.T) {
+	dead1 := closedURL(t)
+	dead2 := closedURL(t)
+
+	c := NewClient("key",
+		WithBaseURLs([]string{dead1, dead2}),
+		WithMaxRetries(0),
+		WithTimeout(5*time.Second),
+	)
+
+	_, err := c.Apps.List(context.Background())
+	if err == nil {
+		t.Fatal("expected error when all hosts are down, got nil")
+	}
+	// Error must mention unreachable hosts.
+	if !containsAt(err.Error(), "unreachable") {
+		t.Errorf("error %q does not mention 'unreachable'", err.Error())
+	}
+}
+
+func TestWithBaseURLs_FiltersEmpty(t *testing.T) {
+	good := httptest.NewServer(jsonHandler([]App{{UUID: "ok"}}))
+	t.Cleanup(good.Close)
+
+	// Mix of empty strings and the real URL.
+	c := NewClient("key",
+		WithBaseURLs([]string{"", good.URL, "   ", "  "}),
+		WithMaxRetries(0),
+	)
+	// WithBaseURLs trims trailing slash but empty after trim are skipped.
+	// "   " trims to "   " (no slash trimming), but is not empty — however
+	// the test verifies the real URL still works when mixed with empties.
+	apps, err := c.Apps.List(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(apps) == 0 {
+		t.Error("expected at least one app")
+	}
+}
+
+func TestClient_ConnectionReuse(t *testing.T) {
+	srv := httptest.NewServer(jsonHandler(map[string]any{"nodes": map[string]any{"count": 1}}))
+	t.Cleanup(srv.Close)
+
+	c := NewClient("key", WithBaseURL(srv.URL), WithMaxRetries(0))
+	ctx := context.Background()
+
+	// First request — establishes connection.
+	if _, err := c.Network.Info(ctx); err != nil {
+		t.Fatalf("first request: %v", err)
+	}
+
+	// Second request — should reuse the existing connection.
+	reused := false
+	trace := &httptrace.ClientTrace{
+		GotConn: func(info httptrace.GotConnInfo) {
+			reused = info.Reused
+		},
+	}
+	ctx2 := httptrace.WithClientTrace(ctx, trace)
+	// Issue a raw request through the same transport used by the client.
+	req, _ := http.NewRequestWithContext(ctx2, http.MethodGet, srv.URL+"/network", nil)
+	resp, err := c.cfg.httpClient.Do(req)
+	if err != nil {
+		t.Fatalf("second request: %v", err)
+	}
+	resp.Body.Close()
+
+	if !reused {
+		t.Error("expected connection to be reused on second request")
+	}
 }

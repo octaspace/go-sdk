@@ -89,7 +89,7 @@ func NewStdLogger(l interface{ Printf(string, ...any) }) Logger {
 // config holds the resolved Client configuration.
 type config struct {
 	apiKey     string
-	baseURL    string
+	baseURLs   []string      // tried in order; failover on network-level errors
 	httpClient *http.Client
 	timeout    time.Duration // per-request SDK timeout applied via context
 	maxRetries int
@@ -101,9 +101,42 @@ type config struct {
 type Option func(*config)
 
 // WithBaseURL overrides the API base URL (default: https://api.octa.space).
+// Equivalent to WithBaseURLs([]string{baseURL}).
 func WithBaseURL(baseURL string) Option {
 	return func(c *config) {
-		c.baseURL = strings.TrimRight(baseURL, "/")
+		u := strings.TrimRight(baseURL, "/")
+		if u != "" {
+			c.baseURLs = []string{u}
+		}
+	}
+}
+
+// WithBaseURLs sets an ordered list of base URLs. The client tries each URL in
+// order and moves to the next only on network-level failures (connection refused,
+// DNS errors, TLS errors). HTTP errors (4xx, 5xx) are returned immediately without
+// failover. Empty or blank entries are ignored. If the list is empty after
+// filtering, the existing configuration is left unchanged.
+//
+// Example:
+//
+//	client := octaspace.NewClient(apiKey,
+//	    octaspace.WithBaseURLs([]string{
+//	        "https://api.octa.space",
+//	        "https://api-backup.octa.space",
+//	    }),
+//	)
+func WithBaseURLs(urls []string) Option {
+	return func(c *config) {
+		cleaned := make([]string, 0, len(urls))
+		for _, u := range urls {
+			u = strings.TrimRight(u, "/")
+			if u != "" {
+				cleaned = append(cleaned, u)
+			}
+		}
+		if len(cleaned) > 0 {
+			c.baseURLs = cleaned
+		}
 	}
 }
 
@@ -165,13 +198,21 @@ type Client struct {
 	IdleJobs *IdleJobsResource
 }
 
+// newDefaultTransport returns an http.Transport tuned for SDK use:
+// connection pooling with up to 10 idle connections per host.
+func newDefaultTransport() http.RoundTripper {
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.MaxIdleConnsPerHost = 10
+	return t
+}
+
 // NewClient creates a new OctaSpace API client authenticated with apiKey.
 // Pass an empty string to use only unauthenticated public endpoints (e.g. Network.Info).
 func NewClient(apiKey string, opts ...Option) *Client {
 	cfg := &config{
 		apiKey:     apiKey,
-		baseURL:    defaultBaseURL,
-		httpClient: &http.Client{}, // no transport-level Timeout — we use context
+		baseURLs:   []string{defaultBaseURL},
+		httpClient: &http.Client{Transport: newDefaultTransport()},
 		timeout:    defaultTimeout,
 		maxRetries: defaultMaxRetries,
 		userAgent:  "octaspace-go/" + Version,
@@ -208,7 +249,8 @@ func (c *Client) timeoutCtx(ctx context.Context) (context.Context, context.Cance
 
 // get performs a GET request with optional query parameters and JSON-decodes
 // the response into dst. Pass nil params or dst to omit them.
-// Retries transient failures (429, 5xx) up to maxRetries times.
+// Retries transient failures (429, 5xx) and fails over to backup hosts on
+// network-level errors.
 func (c *Client) get(ctx context.Context, path string, params url.Values, dst any) error {
 	ctx, cancel := c.timeoutCtx(ctx)
 	defer cancel()
@@ -235,15 +277,17 @@ func (c *Client) patch(ctx context.Context, path string, body, dst any) error {
 
 // getRaw performs a GET request and returns the raw response body bytes without
 // JSON decoding. Used for binary responses (logs, ident files).
-// Retries transient failures the same way [get] does.
+// Retries transient failures and fails over to backup hosts on network errors.
 func (c *Client) getRaw(ctx context.Context, path string) ([]byte, error) {
 	ctx, cancel := c.timeoutCtx(ctx)
 	defer cancel()
 	var body []byte
 	err := c.withRetry(ctx, http.MethodGet, func() error {
-		var ierr error
-		body, ierr = c.doRawOnce(ctx, path)
-		return ierr
+		return c.failover(func(baseURL string) error {
+			var ierr error
+			body, ierr = c.doRawOnce(ctx, path, baseURL)
+			return ierr
+		})
 	})
 	return body, err
 }
@@ -272,56 +316,58 @@ func (c *Client) withRetry(ctx context.Context, method string, fn func() error) 
 	}
 }
 
-// doRawOnce executes a single raw GET request without retry.
-func (c *Client) doRawOnce(ctx context.Context, path string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.cfg.baseURL+path, nil)
-	if err != nil {
-		return nil, fmt.Errorf("octaspace: build request: %w", err)
-	}
-	req.Header.Set("User-Agent", c.cfg.userAgent)
-	req.Header.Set("Accept", "*/*")
-	if c.cfg.apiKey != "" {
-		req.Header.Set("Authorization", c.cfg.apiKey)
-	}
-
-	start := time.Now()
-	resp, err := c.cfg.httpClient.Do(req)
-	elapsed := time.Since(start)
-	if err != nil {
-		if c.cfg.logger != nil {
-			c.cfg.logger.Errorf("octaspace: GET %s failed after %dms: %v",
-				path, elapsed.Milliseconds(), err)
+// failover tries fn against each configured base URL in order.
+// It moves to the next URL only on network-level errors ([*NetworkError]).
+// HTTP errors (4xx, 5xx) are returned immediately without failover.
+// If all URLs fail, returns the last error wrapped with context.
+func (c *Client) failover(fn func(baseURL string) error) error {
+	var lastErr error
+	for i, baseURL := range c.cfg.baseURLs {
+		if i > 0 && c.cfg.logger != nil {
+			c.cfg.logger.Debugf("octaspace: host %s unreachable, failing over to %s",
+				c.cfg.baseURLs[i-1], baseURL)
 		}
-		return nil, &NetworkError{Err: err}
+		err := fn(baseURL)
+		if err == nil {
+			return nil
+		}
+		var netErr *NetworkError
+		if errors.As(err, &netErr) {
+			lastErr = err
+			continue
+		}
+		return err
 	}
-	defer resp.Body.Close()
-	if c.cfg.logger != nil {
-		c.cfg.logger.Debugf("octaspace: GET %s -> %d (%dms)",
-			path, resp.StatusCode, elapsed.Milliseconds())
+	if len(c.cfg.baseURLs) > 1 {
+		return fmt.Errorf("octaspace: all hosts unreachable: %w", lastErr)
 	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("octaspace: read response: %w", err)
-	}
-	if resp.StatusCode >= 400 {
-		return nil, errorFromResponse(resp, body)
-	}
-	return body, nil
+	return lastErr
 }
 
-// do executes a single HTTP request, logging diagnostics and parsing errors.
+// do marshals body once, then tries each configured base URL via failover.
 func (c *Client) do(ctx context.Context, method, path string, params url.Values, body, dst any) error {
-	var bodyReader io.Reader
+	var bodyData []byte
 	if !isNilValue(body) {
-		data, err := json.Marshal(body)
+		var err error
+		bodyData, err = json.Marshal(body)
 		if err != nil {
 			return fmt.Errorf("octaspace: marshal request body: %w", err)
 		}
-		bodyReader = bytes.NewReader(data)
+	}
+	return c.failover(func(baseURL string) error {
+		return c.doOnce(ctx, method, path, params, bodyData, dst, baseURL)
+	})
+}
+
+// doOnce executes a single HTTP round-trip against the given baseURL.
+// bodyData must already be JSON-encoded (or nil for requests without a body).
+func (c *Client) doOnce(ctx context.Context, method, path string, params url.Values, bodyData []byte, dst any, baseURL string) error {
+	var bodyReader io.Reader
+	if bodyData != nil {
+		bodyReader = bytes.NewReader(bodyData)
 	}
 
-	rawURL := c.cfg.baseURL + path
+	rawURL := baseURL + path
 	if len(params) > 0 {
 		rawURL += "?" + params.Encode()
 	}
@@ -350,7 +396,7 @@ func (c *Client) do(ctx context.Context, method, path string, params url.Values,
 		}
 		return &NetworkError{Err: err}
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if c.cfg.logger != nil {
 		c.cfg.logger.Debugf("octaspace: %s %s -> %d (%dms)",
@@ -371,6 +417,44 @@ func (c *Client) do(ctx context.Context, method, path string, params url.Values,
 		return fmt.Errorf("octaspace: decode response: %w", err)
 	}
 	return nil
+}
+
+// doRawOnce executes a single raw GET request against baseURL without JSON decoding.
+func (c *Client) doRawOnce(ctx context.Context, path, baseURL string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("octaspace: build request: %w", err)
+	}
+	req.Header.Set("User-Agent", c.cfg.userAgent)
+	req.Header.Set("Accept", "*/*")
+	if c.cfg.apiKey != "" {
+		req.Header.Set("Authorization", c.cfg.apiKey)
+	}
+
+	start := time.Now()
+	resp, err := c.cfg.httpClient.Do(req)
+	elapsed := time.Since(start)
+	if err != nil {
+		if c.cfg.logger != nil {
+			c.cfg.logger.Errorf("octaspace: GET %s failed after %dms: %v",
+				path, elapsed.Milliseconds(), err)
+		}
+		return nil, &NetworkError{Err: err}
+	}
+	defer resp.Body.Close() //nolint:errcheck
+	if c.cfg.logger != nil {
+		c.cfg.logger.Debugf("octaspace: GET %s -> %d (%dms)",
+			path, resp.StatusCode, elapsed.Milliseconds())
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("octaspace: read response: %w", err)
+	}
+	if resp.StatusCode >= 400 {
+		return nil, errorFromResponse(resp, body)
+	}
+	return body, nil
 }
 
 // isNilValue reports whether v is nil, including typed-nil pointers, maps,

@@ -82,7 +82,7 @@ func TestSessionProxy_Info(t *testing.T) {
 	if got.TX != want.TX {
 		t.Errorf("TX = %d, want %d", got.TX, want.TX)
 	}
-	if got.ChargeAmount.Int.Cmp(want.ChargeAmount.Int) != 0 {
+	if got.ChargeAmount.Cmp(want.ChargeAmount.Int) != 0 {
 		t.Errorf("ChargeAmount = %s, want %s", got.ChargeAmount.Int, want.ChargeAmount.Int)
 	}
 }

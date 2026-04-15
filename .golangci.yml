@@ -1,0 +1,32 @@
+version: "2"
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
+    - errorlint
+    - nilerr
+
+  settings:
+    errcheck:
+      # Ignore common patterns where checking the error adds no value.
+      exclude-functions:
+        # httptest response writers — write errors are irrelevant in tests.
+        - (net/http.ResponseWriter).Write
+        # json.Encoder.Encode — encoding to an in-memory buffer won't fail.
+        - (*encoding/json.Encoder).Encode
+
+  exclusions:
+    rules:
+      # Test files intentionally discard errors from SDK calls used only to
+      # exercise HTTP paths (e.g. c.Network.Info to check auth header).
+      - path: "_test\\.go$"
+        linters: [errcheck]
+
+      # Example functions are kept concise; error handling is omitted by design.
+      - path: "example_test\\.go$"
+        linters: [errcheck]

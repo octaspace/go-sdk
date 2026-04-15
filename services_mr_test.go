@@ -3,6 +3,7 @@ package octaspace
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -10,16 +11,7 @@ import (
 
 // readBody reads and returns r.Body bytes (helper used across test files).
 func readBody(r *http.Request) ([]byte, error) {
-	buf := make([]byte, 0, 512)
-	tmp := make([]byte, 512)
-	for {
-		n, err := r.Body.Read(tmp)
-		buf = append(buf, tmp[:n]...)
-		if err != nil {
-			break
-		}
-	}
-	return buf, nil
+	return io.ReadAll(r.Body)
 }
 
 func TestMachineRental_List(t *testing.T) {

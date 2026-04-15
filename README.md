@@ -1,11 +1,16 @@
 # OctaSpace Go SDK
 
+[![CI](https://github.com/octaspace/go-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/octaspace/go-sdk/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/octaspace/go-sdk.svg)](https://pkg.go.dev/github.com/octaspace/go-sdk)
+[![Go Report Card](https://goreportcard.com/badge/github.com/octaspace/go-sdk)](https://goreportcard.com/report/github.com/octaspace/go-sdk)
+
 Go client library for the [OctaSpace](https://octa.space) API — a decentralized marketplace for GPU compute, VPN relays, and rendering.
 
 - Zero external dependencies (standard library only)
 - Resource-oriented API: `client.Nodes.List(ctx, nil)`, `client.Services.MR.Create(ctx, params)`
 - Typed error hierarchy with `errors.As` support
 - Automatic retry with exponential backoff on transient errors (429, 5xx)
+- Multi-URL failover — automatically switches to a backup host on network-level errors
 - `context.Context` support on every method — timeouts and cancellation work out of the box
 
 ## Requirements
@@ -411,6 +416,21 @@ if errors.As(err, &apiErr) {
 | `*RateLimitError` | 429 | Too many requests; check `RetryAfter` |
 | `*ServerError` | 5xx | Internal server error |
 
+## Multi-URL failover
+
+Pass multiple base URLs to have the client automatically switch to the next one on network-level errors (connection refused, DNS failure, TLS error). HTTP errors (4xx, 5xx) are returned immediately without failover.
+
+```go
+client := octaspace.NewClient(apiKey,
+    octaspace.WithBaseURLs([]string{
+        "https://api.octa.space",
+        "https://api-backup.octa.space",
+    }),
+)
+```
+
+Failover is transparent to the caller — the error returned is from the last attempted host if all fail.
+
 ## Retries
 
 The client retries idempotent requests (GET) on transient errors (HTTP 429, 500, 502, 503, 504) using exponential backoff with ±25% jitter:
@@ -539,6 +559,10 @@ octaspace/
 ├── examples/basic/         — runnable usage example
 └── cmd/smoke/              — live API smoke test tool
 ```
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for a full history of changes.
 
 ## License
 

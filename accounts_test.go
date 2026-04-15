@@ -34,8 +34,8 @@ func TestBigIntUnmarshalJSON(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if b.Int.String() != tc.want {
-				t.Errorf("got %q, want %q", b.Int.String(), tc.want)
+			if b.String() != tc.want {
+				t.Errorf("got %q, want %q", b.String(), tc.want)
 			}
 		})
 	}
@@ -74,7 +74,7 @@ func TestBigIntRoundTrip(t *testing.T) {
 	if err := json.Unmarshal(data, &b2); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if b.Int.Cmp(b2.Int) != 0 {
+	if b.Cmp(b2.Int) != 0 {
 		t.Fatalf("round-trip mismatch: got %s, want %s", b2.Int, b.Int)
 	}
 }

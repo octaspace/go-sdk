@@ -76,5 +76,5 @@ func (b BigInt) MarshalJSON() ([]byte, error) {
 	if b.Int == nil {
 		return []byte("0"), nil
 	}
-	return []byte(b.Int.String()), nil
+	return []byte(b.String()), nil
 }

@@ -298,7 +298,7 @@ func main() {
 		}
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		enc.Encode(report)
+		_ = enc.Encode(report)
 	} else {
 		fmt.Println()
 		fmt.Printf("Summary: %d/%d passed", summary.Passed, len(results)-summary.Skipped)
