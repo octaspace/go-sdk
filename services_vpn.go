@@ -2,6 +2,7 @@ package octaspace
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/url"
 )
@@ -33,12 +34,39 @@ func (r VPNRelay) DownloadMbps() float64 { return normalizeNetMbits(r.NetDownMbi
 func (r VPNRelay) UploadMbps() float64 { return normalizeNetMbits(r.NetUpMbits) }
 
 // VPNCreateParams holds parameters for creating a VPN session.
+//
+// Protocol is required when SubKind == "v2ray" (e.g. "vmess", "vless"); it is
+// ignored by the API for other subkinds. Values in Extra are merged into the
+// request body and take precedence over the typed fields on key conflict,
+// allowing callers to pass forward-compatible fields without an SDK bump.
 type VPNCreateParams struct {
-	NodeID         int64  `json:"node_id"`
-	SubKind        string `json:"subkind,omitempty"`        // e.g. "wg", "openvpn", "ss", "v2ray"
-	Protocol       string `json:"protocol,omitempty"`       // required when SubKind is "v2ray"
-	OrganizationID string `json:"organization_id,omitempty"`
-	ProjectID      string `json:"project_id,omitempty"`
+	NodeID         int64          `json:"node_id"`
+	SubKind        string         `json:"subkind,omitempty"` // "wg", "openvpn", "ss", "v2ray"
+	Protocol       string         `json:"protocol,omitempty"`
+	OrganizationID string         `json:"organization_id,omitempty"`
+	ProjectID      string         `json:"project_id,omitempty"`
+	Extra          map[string]any `json:"-"`
+}
+
+// MarshalJSON serializes VPNCreateParams, merging Extra into the top-level
+// object so callers can forward arbitrary API fields.
+func (p VPNCreateParams) MarshalJSON() ([]byte, error) {
+	type alias VPNCreateParams
+	base, err := json.Marshal(alias(p))
+	if err != nil {
+		return nil, err
+	}
+	if len(p.Extra) == 0 {
+		return base, nil
+	}
+	var merged map[string]any
+	if err := json.Unmarshal(base, &merged); err != nil {
+		return nil, err
+	}
+	for k, v := range p.Extra {
+		merged[k] = v
+	}
+	return json.Marshal(merged)
 }
 
 // VPNCreateResponse is returned when a VPN session is created.
