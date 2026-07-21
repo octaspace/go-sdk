@@ -33,9 +33,9 @@ type Session struct {
 	StartedAt  FlexInt64 `json:"started_at"`
 	FinishedAt FlexInt64 `json:"finished_at"`
 
-	// Network counters (present in recent sessions, returned as quoted strings)
-	RX string `json:"rx"`
-	TX string `json:"tx"`
+	// Network counters may be returned as JSON numbers or quoted strings.
+	RX FlexInt64 `json:"rx"`
+	TX FlexInt64 `json:"tx"`
 
 	// Billing
 	ChargeAmount      BigInt `json:"charge_amount"`

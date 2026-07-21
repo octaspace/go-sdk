@@ -23,6 +23,7 @@ const (
 type ServicesResource struct {
 	c      *Client
 	MR     *MachineRentalResource
+	R      *RenderWorkerResource
 	VPN    *VPNResource
 	Render *RenderResource
 }

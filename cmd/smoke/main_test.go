@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	octaspace "github.com/octaspace/go-sdk"
@@ -27,6 +28,16 @@ func TestRunCheck_SkipsWithoutAuth(t *testing.T) {
 	}
 	if r.Summary != "no auth" {
 		t.Fatalf("Summary = %q, want no auth", r.Summary)
+	}
+}
+
+func TestSummarizeDoesNotExposeScalarOrAccountValues(t *testing.T) {
+	if got := summarize("104064765413502726951"); got != "string" {
+		t.Errorf("summarize(string) = %q, want string", got)
+	}
+	got := summarize(map[string]any{"email": "person@example.test", "account_uuid": "secret-uuid"})
+	if strings.Contains(got, "person@example.test") || strings.Contains(got, "secret-uuid") {
+		t.Errorf("summary exposes account data: %q", got)
 	}
 }
 

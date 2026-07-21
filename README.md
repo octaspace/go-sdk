@@ -217,7 +217,7 @@ recent := true
 sessions, err := client.Sessions.List(ctx, &octaspace.ListSessionsParams{Recent: &recent})
 ```
 
-**Note:** The `/sessions` and `/sessions?recent=true` endpoints return overlapping but different field sets. The `recent=true` response includes `FinishedAt`, `RX`, `TX`, `TerminationReason` and returns `Duration` as a quoted string. The SDK handles both transparently via `FlexInt64`.
+**Note:** The `/sessions` and `/sessions?recent=true` endpoints return overlapping but different field sets. The `recent=true` response includes `FinishedAt`, `RX`, `TX`, `TerminationReason`; numeric fields can be JSON numbers or quoted strings. The SDK handles both transparently via `FlexInt64`.
 
 ### Services — Machine Rental (compute)
 
@@ -244,7 +244,8 @@ resp, err := client.Services.MR.Create(ctx, &octaspace.MachineRentalCreateParams
     StartCommand: "",
     Entrypoint:   "",
 })
-// resp.UUID is the session UUID — use it with Services.Session(uuid)
+// resp.UUID is the first successful session UUID — use it with Services.Session(uuid).
+// Inspect resp.Results for the per-item API result and partial rejections.
 ```
 
 **MachineRental pricing fields** (all `base_usd` / `storage_usd` / `traffic_usd` are scaled ×10 000):
@@ -288,6 +289,29 @@ resp, err = client.Services.VPN.Create(ctx, &octaspace.VPNCreateParams{
     SubKind:  "v2ray",
     Protocol: "vmess",
 })
+```
+
+### Services — Render workers
+
+`/services/r` is the render-worker marketplace. It is distinct from
+`/services/render`: the worker API accepts one or more node IDs and returns an
+individual result for each requested node.
+
+```go
+// GET /services/r — available render workers
+workers, err := client.Services.R.List(ctx, nil)
+
+// POST /services/r — rent workers
+resp, err := client.Services.R.Create(ctx, &octaspace.RenderWorkerCreateParams{
+    NodeIDs: []int64{42, 43},
+})
+for _, result := range resp.Results {
+    if result.UUID != "" {
+        fmt.Println("session:", result.UUID)
+        continue
+    }
+    fmt.Println("request rejected:", result.Reason)
+}
 ```
 
 ### Services — Render
@@ -550,8 +574,10 @@ octaspace/
 ├── idle_jobs.go            — IdleJobs resource
 ├── network.go              — Network resource
 ├── nodes.go                — Nodes resource
-├── services.go             — ServicesResource (aggregates MR, VPN, Render, Session)
+├── services.go             — ServicesResource (aggregates MR, R, VPN, Render, Session)
+├── services_create.go      — shared per-item service create responses
 ├── services_mr.go          — Machine Rental sub-resource
+├── services_r.go           — Render worker sub-resource (/services/r)
 ├── services_render.go      — Render sub-resource
 ├── services_session_proxy.go — per-session operations (Info, Logs, Stop)
 ├── services_vpn.go         — VPN sub-resource

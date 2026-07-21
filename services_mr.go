@@ -97,35 +97,38 @@ func normalizeNetMbits(raw int64) float64 {
 
 // MachineRentalCreateParams holds the parameters for creating a machine rental session.
 type MachineRentalCreateParams struct {
-	NodeID       int64
-	DiskSize     int
-	Image        string
-	App          string            // application UUID; empty string for custom images
-	Envs         map[string]string // environment variables injected into the container
-	Ports        []int             // TCP ports to expose
-	HTTPPorts    []int             // HTTP ports to expose via reverse proxy
-	StartCommand string
-	Entrypoint   string
+	NodeID         int64
+	DiskSize       int
+	Image          string
+	App            string            // application UUID; empty string for custom images
+	Envs           map[string]string // environment variables injected into the container
+	Ports          []int             // TCP ports to expose
+	HTTPPorts      []int             // HTTP ports to expose via reverse proxy
+	StartCommand   string
+	Entrypoint     string
+	OrganizationID string
+	ProjectID      string
 }
 
 // MachineRentalCreateResponse is returned when a machine rental session is created.
-type MachineRentalCreateResponse struct {
-	UUID string `json:"uuid"`
-}
+// It preserves UUID as the first successful result for single-node requests.
+type MachineRentalCreateResponse = ServiceCreateResponse
 
 // mrCreateItem is the wire format for POST /services/mr.
 // The API expects a single-item array with id=0.
 type mrCreateItem struct {
-	ID           int               `json:"id"`
-	NodeID       int64             `json:"node_id"`
-	DiskSize     int               `json:"disk_size"`
-	Image        string            `json:"image"`
-	App          string            `json:"app"`
-	Envs         map[string]string `json:"envs"`
-	Ports        []int             `json:"ports"`
-	HTTPPorts    []int             `json:"http_ports"`
-	StartCommand string            `json:"start_command"`
-	Entrypoint   string            `json:"entrypoint"`
+	ID             int               `json:"id"`
+	NodeID         int64             `json:"node_id"`
+	DiskSize       int               `json:"disk_size"`
+	Image          string            `json:"image"`
+	App            string            `json:"app"`
+	Envs           map[string]string `json:"envs"`
+	Ports          []int             `json:"ports"`
+	HTTPPorts      []int             `json:"http_ports"`
+	StartCommand   string            `json:"start_command"`
+	Entrypoint     string            `json:"entrypoint"`
+	OrganizationID string            `json:"organization_id,omitempty"`
+	ProjectID      string            `json:"project_id,omitempty"`
 }
 
 // MachineRentalResource provides access to machine rental (MR) service endpoints.
@@ -165,16 +168,18 @@ func (r *MachineRentalResource) Create(ctx context.Context, params *MachineRenta
 	}
 
 	item := mrCreateItem{
-		ID:           0,
-		NodeID:       params.NodeID,
-		DiskSize:     params.DiskSize,
-		Image:        params.Image,
-		App:          params.App,
-		Envs:         envs,
-		Ports:        ports,
-		HTTPPorts:    httpPorts,
-		StartCommand: params.StartCommand,
-		Entrypoint:   params.Entrypoint,
+		ID:             0,
+		NodeID:         params.NodeID,
+		DiskSize:       params.DiskSize,
+		Image:          params.Image,
+		App:            params.App,
+		Envs:           envs,
+		Ports:          ports,
+		HTTPPorts:      httpPorts,
+		StartCommand:   params.StartCommand,
+		Entrypoint:     params.Entrypoint,
+		OrganizationID: params.OrganizationID,
+		ProjectID:      params.ProjectID,
 	}
 
 	var resp MachineRentalCreateResponse

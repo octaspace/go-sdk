@@ -129,6 +129,13 @@ var checks = []check{
 		},
 	},
 	{
+		id: "services.r.list", label: "client.Services.R.List",
+		method: "GET", path: "/services/r", requiresAuth: true,
+		fn: func(ctx context.Context, c *octaspace.Client) (any, error) {
+			return c.Services.R.List(ctx, nil)
+		},
+	},
+	{
 		id: "services.vpn.list", label: "client.Services.VPN.List",
 		method: "GET", path: "/services/vpn", requiresAuth: false,
 		fn: func(ctx context.Context, c *octaspace.Client) (any, error) {
@@ -403,12 +410,10 @@ func summarize(v any) string {
 	if v == nil {
 		return ""
 	}
-	// String values (e.g. balance as string)
-	if s, ok := v.(string); ok {
-		if len(s) > 60 {
-			return s[:57] + "..."
-		}
-		return s
+	// Scalars can contain account data (for example a balance), so report only
+	// their type rather than their value.
+	if _, ok := v.(string); ok {
+		return "string"
 	}
 
 	b, err := json.Marshal(v)
@@ -434,16 +439,9 @@ func summarize(v any) string {
 		return s
 	case map[string]any:
 		keys := topKeys(x, 8)
-		// Surface useful fields for common responses.
-		if email, ok := x["email"].(string); ok {
-			return fmt.Sprintf("email: %s", email)
-		}
-		if uuid, ok := x["account_uuid"].(string); ok {
-			return fmt.Sprintf("uuid: %s", uuid)
-		}
 		return fmt.Sprintf("{%s}", strings.Join(keys, ", "))
 	default:
-		return fmt.Sprintf("%v", v)
+		return fmt.Sprintf("%T", v)
 	}
 }
 
