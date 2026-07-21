@@ -7,6 +7,28 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## 0.2.0 - 2026-07-21
+
+### Added
+
+- `client.Services.R` for the distinct `/services/r` render-worker marketplace,
+  including typed multi-node create requests and per-item results.
+- `ServiceCreateResponse.Results` and `ServiceCreateResult` for service APIs
+  that return a result for every requested node.
+- Optional organization and project identifiers on machine-rental create
+  requests.
+
+### Fixed
+
+- `Sessions.List` now accepts numeric as well as quoted-string `rx` and `tx`
+  counters from recent-session responses.
+- Machine-rental creation now decodes the production per-item array response;
+  the first successful UUID remains available through `response.UUID` for
+  single-node callers.
+- The smoke command no longer prints scalar account values or account fields;
+  it reports only types, counts, and field names.
+- Updated the reflection kind spelling to satisfy the configured Go linter.
+
 ## [0.1.0] — 2026-04-15
 
 Initial public release.
@@ -56,4 +78,4 @@ Initial public release.
 - `cmd/smoke` — standalone smoke tool with `--json` output and per-check skip/pass/fail reporting
 - godoc `Example*` functions for key types and options
 
-[0.1.0]: https://github.com/octaspace/go-sdk/releases/tag/v0.1.0
+[0.2.0]: https://github.com/octaspace/go-sdk/releases/tag/v0.2.0

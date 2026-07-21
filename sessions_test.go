@@ -47,6 +47,23 @@ func TestSessions_List_RecentParam(t *testing.T) {
 	}
 }
 
+func TestSessions_List_AcceptsNumericAndQuotedCounters(t *testing.T) {
+	c, _ := newTestClient(t, jsonHandler([]map[string]any{
+		{"uuid": "numeric", "rx": 1024, "tx": 2048},
+		{"uuid": "quoted", "rx": "4096", "tx": "8192"},
+	}))
+	got, err := c.Sessions.List(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if int64(got[0].RX) != 1024 || int64(got[0].TX) != 2048 {
+		t.Errorf("numeric counters = %d/%d, want 1024/2048", got[0].RX, got[0].TX)
+	}
+	if int64(got[1].RX) != 4096 || int64(got[1].TX) != 8192 {
+		t.Errorf("quoted counters = %d/%d, want 4096/8192", got[1].RX, got[1].TX)
+	}
+}
+
 func TestSessions_List_Error(t *testing.T) {
 	c, _ := newTestClient(t, statusHandler(401, `{"error":"unauthorized"}`))
 	_, err := c.Sessions.List(context.Background(), nil)

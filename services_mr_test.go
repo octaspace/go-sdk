@@ -158,7 +158,10 @@ func TestMachineRental_Create_WithEnvAndPorts(t *testing.T) {
 }
 
 func TestMachineRental_Create_ReturnsUUID(t *testing.T) {
-	c, _ := newTestClient(t, jsonHandler(MachineRentalCreateResponse{UUID: "created-uuid"}))
+	c, _ := newTestClient(t, jsonHandler([]ServiceCreateResult{
+		{ID: 0, UUID: "created-uuid"},
+		{ID: 1, Reason: "node busy"},
+	}))
 	resp, err := c.Services.MR.Create(context.Background(), &MachineRentalCreateParams{
 		NodeID: 1, DiskSize: 10, Image: "alpine",
 	})
@@ -167,5 +170,8 @@ func TestMachineRental_Create_ReturnsUUID(t *testing.T) {
 	}
 	if resp.UUID != "created-uuid" {
 		t.Errorf("UUID = %q, want created-uuid", resp.UUID)
+	}
+	if len(resp.Results) != 2 || resp.Results[1].Reason != "node busy" {
+		t.Errorf("Results = %+v, want per-item response", resp.Results)
 	}
 }

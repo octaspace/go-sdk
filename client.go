@@ -13,6 +13,7 @@
 //	client.Apps             – available application catalog
 //	client.Network          – network information
 //	client.Services.MR      – machine rental (compute)
+//	client.Services.R       – render workers
 //	client.Services.VPN     – VPN service
 //	client.Services.Render  – render service
 //	client.Services.Session – per-session operations (info, logs, stop)
@@ -40,7 +41,7 @@ import (
 )
 
 // Version is the current SDK version, embedded in the default User-Agent header.
-const Version = "0.1.0"
+const Version = "0.2.0"
 
 const (
 	defaultBaseURL    = "https://api.octa.space"
@@ -231,6 +232,7 @@ func NewClient(apiKey string, opts ...Option) *Client {
 	c.Services = &ServicesResource{
 		c:      c,
 		MR:     &MachineRentalResource{c},
+		R:      &RenderWorkerResource{c},
 		VPN:    &VPNResource{c},
 		Render: &RenderResource{c},
 	}
@@ -487,7 +489,7 @@ func isNilValue(v any) bool {
 	}
 	rv := reflect.ValueOf(v)
 	switch rv.Kind() {
-	case reflect.Ptr, reflect.Map, reflect.Slice, reflect.Interface, reflect.Chan, reflect.Func:
+	case reflect.Pointer, reflect.Map, reflect.Slice, reflect.Interface, reflect.Chan, reflect.Func:
 		return rv.IsNil()
 	}
 	return false
