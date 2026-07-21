@@ -14,7 +14,12 @@ jobs:
       fail-fast: false
       matrix:
         go: ["1.20", "1.21", "1.22", "1.23"]
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest]
+        # macOS 15 (Sequoia) runners reject -race test binaries built by the
+        # go1.21/1.22 toolchains ("missing LC_UUID load command"; fixed in 1.23),
+        # so cover macOS only on the newest Go rather than the full matrix.
+        include:
+          - { go: "1.23", os: macos-latest }
 
     steps:
       - uses: actions/checkout@v4
