@@ -58,6 +58,16 @@ func TestVPN_List_Error(t *testing.T) {
 	}
 }
 
+func TestVPNRelay_AcceptsLegacyNetworkFieldNames(t *testing.T) {
+	var relay VPNRelay
+	if err := json.Unmarshal([]byte(`{"net_down_mbs":500.9,"net_up_mbs":"300.2"}`), &relay); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if relay.NetDownMbits != 500 || relay.NetUpMbits != 300 {
+		t.Errorf("relay = %+v", relay)
+	}
+}
+
 func TestVPN_Create_SendsBody(t *testing.T) {
 	var gotBody []byte
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

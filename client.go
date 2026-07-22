@@ -41,7 +41,7 @@ import (
 )
 
 // Version is the current SDK version, embedded in the default User-Agent header.
-const Version = "0.2.0"
+const Version = "0.3.0"
 
 const (
 	defaultBaseURL    = "https://api.octa.space"
@@ -286,13 +286,19 @@ func (c *Client) patch(ctx context.Context, path string, body, dst any) error {
 // JSON decoding. Used for binary responses (logs, ident files).
 // Retries transient failures and fails over to backup hosts on network errors.
 func (c *Client) getRaw(ctx context.Context, path string) ([]byte, error) {
+	return c.getRawParams(ctx, path, nil)
+}
+
+// getRawParams performs a GET request with optional query parameters and
+// returns the raw response body bytes without JSON decoding.
+func (c *Client) getRawParams(ctx context.Context, path string, params url.Values) ([]byte, error) {
 	ctx, cancel := c.timeoutCtx(ctx)
 	defer cancel()
 	var body []byte
 	err := c.withRetry(ctx, http.MethodGet, func() error {
 		return c.failover(func(baseURL string) error {
 			var ierr error
-			body, ierr = c.doRawOnce(ctx, path, baseURL)
+			body, ierr = c.doRawOnce(ctx, path, params, baseURL)
 			return ierr
 		})
 	})
@@ -443,8 +449,12 @@ func (c *Client) doOnce(ctx context.Context, method, path string, params url.Val
 }
 
 // doRawOnce executes a single raw GET request against baseURL without JSON decoding.
-func (c *Client) doRawOnce(ctx context.Context, path, baseURL string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+path, nil)
+func (c *Client) doRawOnce(ctx context.Context, path string, params url.Values, baseURL string) ([]byte, error) {
+	rawURL := baseURL + path
+	if len(params) > 0 {
+		rawURL += "?" + params.Encode()
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("octaspace: build request: %w", err)
 	}

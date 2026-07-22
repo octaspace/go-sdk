@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strconv"
+	"strings"
 )
 
 // VPNRelay represents an available VPN relay node.
@@ -85,6 +87,72 @@ type VPNResource struct{ c *Client }
 func (r *VPNResource) List(ctx context.Context, params url.Values) ([]VPNRelay, error) {
 	var relays []VPNRelay
 	return relays, r.c.get(ctx, "/services/vpn", params, &relays)
+}
+
+// ListRaw returns the unmodified JSON body from the VPN-relay endpoint.
+//
+// GET /services/vpn
+func (r *VPNResource) ListRaw(ctx context.Context, params url.Values) ([]byte, error) {
+	return r.c.getRawParams(ctx, "/services/vpn", params)
+}
+
+// UnmarshalJSON accepts both the current net_*_mbits names and the older
+// documented net_*_mbs spelling.
+func (r *VPNRelay) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		NodeID          int64           `json:"node_id"`
+		Country         string          `json:"country"`
+		CountryISO      string          `json:"country_iso"`
+		City            string          `json:"city"`
+		Latitude        float64         `json:"latitude"`
+		Longitude       float64         `json:"longitude"`
+		Residential     bool            `json:"residential"`
+		PricePerGB      float64         `json:"traffic_price_usd"`
+		PricePerGBEther float64         `json:"traffic_price_ether"`
+		NetDownMbits    json.RawMessage `json:"net_down_mbits"`
+		NetUpMbits      json.RawMessage `json:"net_up_mbits"`
+		NetDownMBS      json.RawMessage `json:"net_down_mbs"`
+		NetUpMBS        json.RawMessage `json:"net_up_mbs"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	down := raw.NetDownMbits
+	if len(down) == 0 {
+		down = raw.NetDownMBS
+	}
+	up := raw.NetUpMbits
+	if len(up) == 0 {
+		up = raw.NetUpMBS
+	}
+	downValue, err := decodeFlexibleInt64(down)
+	if err != nil {
+		return fmt.Errorf("decode network download speed: %w", err)
+	}
+	upValue, err := decodeFlexibleInt64(up)
+	if err != nil {
+		return fmt.Errorf("decode network upload speed: %w", err)
+	}
+	*r = VPNRelay{
+		NodeID: raw.NodeID, Country: raw.Country, CountryISO: raw.CountryISO,
+		City: raw.City, Latitude: raw.Latitude, Longitude: raw.Longitude,
+		Residential: raw.Residential, PricePerGB: raw.PricePerGB,
+		PricePerGBEther: raw.PricePerGBEther, NetDownMbits: downValue,
+		NetUpMbits: upValue,
+	}
+	return nil
+}
+
+func decodeFlexibleInt64(raw json.RawMessage) (int64, error) {
+	text := strings.Trim(strings.TrimSpace(string(raw)), `"`)
+	if text == "" || text == "null" {
+		return 0, nil
+	}
+	value, err := strconv.ParseFloat(text, 64)
+	if err != nil {
+		return 0, err
+	}
+	return int64(value), nil
 }
 
 // Create starts a new VPN session on the specified relay node.

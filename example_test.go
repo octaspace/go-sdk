@@ -175,6 +175,19 @@ func ExampleMachineRentalCreateParams() {
 	fmt.Printf("session UUID: %s\n", resp.UUID)
 }
 
+// ExampleMachineRentalResource_CreateSingle shows the documented object-form
+// machine-rental request. Unlike Create, it is not a batch-array request.
+func ExampleMachineRentalResource_CreateSingle() {
+	client := octaspace.NewClient(os.Getenv("OCTA_API_KEY"))
+	result, err := client.Services.MR.CreateSingle(context.Background(), &octaspace.MachineRentalCreateParams{
+		NodeID: 98765, DiskSize: 50, Image: "ubuntu:24.04",
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("session UUID: %s\n", result.UUID)
+}
+
 // ExampleNewStdLogger shows how to attach a standard library logger for
 // request/response diagnostics. Note: *log.Logger does not directly satisfy
 // the Logger interface; use NewStdLogger to wrap it.

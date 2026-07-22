@@ -7,6 +7,29 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.3.0] - 2026-07-22
+
+### Added
+
+- `MachineRentalResource.CreateSingle` for the documented object-form
+  machine-rental request, without changing the existing batch-array `Create`.
+- Scoped lossless JSON methods for apps, account profile, nodes, sessions,
+  machine rentals, VPN relays, and per-session info.
+- Documentation guides under `docs/` for setup, resources, machine rentals,
+  sessions, raw JSON, reliability, and testing.
+
+### Fixed
+
+- `App` now retains `start_command` while decoding application templates.
+- `SessionInfo` models connection, lifecycle, pricing, hardware, and both
+  `config` and `vpn_config` response keys.
+- Machine-rental prices in Wei, vendor-grouped GPUs, and reliability fields are
+  retained by typed decoding.
+- Wallet-generation `address`, node memory usage, and live session `account_id`
+  are retained by typed decoding.
+- Service-create results retain the presence-aware `status` field, including 0.
+- VPN relay decoding accepts both `net_*_mbits` and legacy `net_*_mbs` keys.
+
 ## 0.2.0 - 2026-07-21
 
 ### Added
@@ -79,3 +102,4 @@ Initial public release.
 - godoc `Example*` functions for key types and options
 
 [0.2.0]: https://github.com/octaspace/go-sdk/releases/tag/v0.2.0
+[0.3.0]: https://github.com/octaspace/go-sdk/releases/tag/v0.3.0

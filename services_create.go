@@ -9,8 +9,11 @@ import (
 // request. The API may accept several requested nodes at once and can therefore
 // report a mix of successful and rejected items.
 type ServiceCreateResult struct {
-	ID      int    `json:"id,omitempty"`
-	UUID    string `json:"uuid,omitempty"`
+	ID   int    `json:"id,omitempty"`
+	UUID string `json:"uuid,omitempty"`
+	// Status is present in per-item responses, including successful status 0.
+	// A pointer distinguishes an omitted status from that successful value.
+	Status  *int   `json:"status,omitempty"`
 	Reason  string `json:"reason,omitempty"`
 	Message string `json:"message,omitempty"`
 }
@@ -20,7 +23,7 @@ type ServiceCreateResult struct {
 //
 // UUID is the first successful session UUID and is retained as a convenience
 // for callers that create one item. Use Results for batch requests and partial
-// failures. The decoder also accepts the historical single-object response.
+// failures. The decoder also accepts the documented single-object response.
 type ServiceCreateResponse struct {
 	UUID    string                `json:"uuid,omitempty"`
 	Results []ServiceCreateResult `json:"results,omitempty"`
@@ -40,8 +43,8 @@ func (r ServiceCreateResponse) UUIDs() []string {
 	return uuid
 }
 
-// UnmarshalJSON accepts the current per-item array response and the historical
-// single-object response advertised by older API documentation.
+// UnmarshalJSON accepts the production per-item array response and the
+// documented single-object response.
 func (r *ServiceCreateResponse) UnmarshalJSON(data []byte) error {
 	data = bytes.TrimSpace(data)
 	if len(data) > 0 && data[0] == '[' {
