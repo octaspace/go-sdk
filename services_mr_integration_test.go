@@ -94,7 +94,7 @@ func TestMachineRentalCreateSingleIntegration(t *testing.T) {
 		}
 	}()
 
-	if err := inspectLiveSessionContract(t, ctx, client, result.UUID); err != nil {
+	if err := inspectLiveSessionContract(ctx, t, client, result.UUID); err != nil {
 		t.Fatalf("inspect live session contract: %v", err)
 	}
 	if err := stopAndVerifySession(client, result.UUID); err != nil {
@@ -247,7 +247,7 @@ func createIntegrationParams(nodeID int64, app App) *MachineRentalCreateParams {
 	}
 }
 
-func inspectLiveSessionContract(t *testing.T, ctx context.Context, client *Client, uuid string) error {
+func inspectLiveSessionContract(ctx context.Context, t *testing.T, client *Client, uuid string) error {
 	t.Helper()
 	infoPath := "/services/" + url.PathEscape(uuid) + "/info"
 	infoRaw, err := waitForRawEndpoint(ctx, client, infoPath)
