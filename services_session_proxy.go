@@ -16,16 +16,19 @@ type SessionInfo struct {
 	AppLogo   string `json:"app_logo"`
 	NodeID    int64  `json:"node_id"`
 
-	Progress    string    `json:"progress"`
-	IsReady     bool      `json:"is_ready"`
-	Duration    FlexInt64 `json:"duration"`
-	StartedAt   FlexInt64 `json:"started_at"`
-	PublicIP    string    `json:"public_ip"`
-	IP          string    `json:"ip"`
-	ContainerID string    `json:"container_id"`
-	Country     string    `json:"country"`
-	CountryISO  string    `json:"country_iso"`
-	City        string    `json:"city"`
+	Progress   string    `json:"progress"`
+	IsReady    bool      `json:"is_ready"`
+	Duration   FlexInt64 `json:"duration"`
+	StartedAt  FlexInt64 `json:"started_at"`
+	PublicIP   string    `json:"public_ip"`
+	IP         string    `json:"ip"`
+	Country    string    `json:"country"`
+	CountryISO string    `json:"country_iso"`
+	City       string    `json:"city"`
+
+	// ContainerID is absent for VPN sessions, and returned as a JSON array of
+	// container IDs (joined here with ", ") for compute (MR) sessions.
+	ContainerID FlexString `json:"container_id"`
 
 	PortsMatrix map[string]FlexInt64 `json:"ports_matrix"`
 	SSHDirect   SSHEndpoint          `json:"ssh_direct"`

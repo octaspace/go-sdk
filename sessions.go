@@ -25,14 +25,17 @@ type Session struct {
 	NodeID    int64  `json:"node_id"`
 
 	// Runtime state (present in active sessions)
-	Progress    string `json:"progress"`
-	IsReady     bool   `json:"is_ready"`
-	PublicIP    string `json:"public_ip"`
-	IP          string `json:"ip"`
-	Country     string `json:"country"`
-	CountryISO  string `json:"country_iso"`
-	City        string `json:"city"`
-	ContainerID string `json:"container_id"`
+	Progress   string `json:"progress"`
+	IsReady    bool   `json:"is_ready"`
+	PublicIP   string `json:"public_ip"`
+	IP         string `json:"ip"`
+	Country    string `json:"country"`
+	CountryISO string `json:"country_iso"`
+	City       string `json:"city"`
+
+	// ContainerID is absent for VPN sessions, and returned as a JSON array of
+	// container IDs (joined here with ", ") for compute (MR) sessions.
+	ContainerID FlexString `json:"container_id"`
 
 	// Timing — returned as a bare integer or a quoted string depending on endpoint;
 	// FlexInt64 handles both transparently.
