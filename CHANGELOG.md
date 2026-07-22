@@ -7,6 +7,25 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.4.0] - 2026-07-22
+
+### Fixed
+
+- `NodesResource.Find` now decodes the real `GET /nodes/:id` response. That
+  endpoint uses a different JSON envelope than `GET /nodes` (system block nested
+  under `data`, memory as `total_memory`/`free_memory`, agent version as
+  `data.version`), so decoding it into `Node` silently zeroed CPU, RAM, disk,
+  GPU, uptime, and agent-version fields. Verified against the live API (node 65).
+
+### Changed
+
+- **Breaking:** `NodesResource.Find` now returns `*NodeDetail` instead of
+  `*Node`. `NodeDetail` faithfully models the detail envelope and adds
+  `reliability`, `account_id`, and richer `location`/memory fields. Node prices
+  are not part of this endpoint — use `NodesResource.List` for pricing.
+
+---
+
 ## [0.3.0] - 2026-07-22
 
 ### Added

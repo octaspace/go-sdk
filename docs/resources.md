@@ -21,9 +21,15 @@ model. Use `Apps.ListRaw` when forwarding server JSON unchanged.
 
 ## Nodes
 
-`client.Nodes.List(ctx, params)` supports `Country` and `AppUUID` filters.
-`Find`, `UpdatePrices`, `Reboot`, `DownloadIdent`, and `DownloadLogs` operate
-on one node. `ListRaw` offers the lossless list response.
+`client.Nodes.List(ctx, params)` supports `Country` and `AppUUID` filters and
+returns `[]Node`. `Find`, `UpdatePrices`, `Reboot`, `DownloadIdent`, and
+`DownloadLogs` operate on one node. `ListRaw` offers the lossless list response.
+
+`Find` returns a `*NodeDetail`, not a `Node`: the `GET /nodes/:id` endpoint uses
+a different JSON envelope than the list endpoint (hardware under `data`, memory
+as `total_memory`/`free_memory`, agent version as `data.version`, plus
+`reliability`/`account_id`). Node **prices are not returned by the detail
+endpoint** — read them from `List`.
 
 ## VPN
 

@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -101,23 +103,62 @@ func TestNodes_List_Error(t *testing.T) {
 }
 
 func TestNodes_Find(t *testing.T) {
-	want := Node{ID: 42, IP: "10.0.0.1", State: "online"}
+	// GET /nodes/:id returns a different envelope than GET /nodes: the system
+	// block is nested under "data", memory uses total_memory/free_memory, and
+	// the agent version is data.version. Decode a real captured response and
+	// assert those fields land where callers expect them.
+	body, err := os.ReadFile(filepath.Join("testdata", "node_detail.json"))
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/nodes/42" {
+		if r.URL.Path != "/nodes/65" {
 			http.NotFound(w, r)
 			return
 		}
-		jsonHandler(want)(w, r)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(body)
 	}))
 	t.Cleanup(srv.Close)
 	c := NewClient("key", WithBaseURL(srv.URL), WithMaxRetries(0))
 
-	got, err := c.Nodes.Find(context.Background(), 42)
+	got, err := c.Nodes.Find(context.Background(), 65)
 	if err != nil {
 		t.Fatalf("Find: %v", err)
 	}
-	if got.ID != want.ID || got.IP != want.IP {
-		t.Errorf("got %+v, want %+v", got, want)
+
+	if got.ID != 65 || got.IP != "109.108.71.177" || got.State != "busy" {
+		t.Errorf("top-level: got id=%d ip=%q state=%q", got.ID, got.IP, got.State)
+	}
+	if got.AccountID != 3 {
+		t.Errorf("AccountID = %d, want 3", got.AccountID)
+	}
+	if got.Data.Uptime != 1367738 {
+		t.Errorf("Data.Uptime = %d, want 1367738", got.Data.Uptime)
+	}
+	if got.Data.Version != "0.0.74" {
+		t.Errorf("Data.Version = %q, want 0.0.74", got.Data.Version)
+	}
+	if got.Data.CPUCores != 12 || got.Data.CPUModelName == "" || got.Data.Arch != "x86_64" {
+		t.Errorf("Data cpu/arch: cores=%d model=%q arch=%q", got.Data.CPUCores, got.Data.CPUModelName, got.Data.Arch)
+	}
+	if got.Data.OSVersion != "Ubuntu 24.04.4 LTS" {
+		t.Errorf("Data.OSVersion = %q", got.Data.OSVersion)
+	}
+	if got.Data.Memory.TotalMemory != 67319312384 || got.Data.Memory.FreeMemory != 31259217920 {
+		t.Errorf("Data.Memory total=%d free=%d", got.Data.Memory.TotalMemory, got.Data.Memory.FreeMemory)
+	}
+	if got.Data.Disk.Size != 858574028800 || got.Data.Disk.Free != 207427837952 {
+		t.Errorf("Data.Disk size=%d free=%d", got.Data.Disk.Size, got.Data.Disk.Free)
+	}
+	if len(got.Data.GPUs) != 1 || got.Data.GPUs[0].Model != "NVIDIA GeForce RTX 3090" {
+		t.Errorf("Data.GPUs = %+v", got.Data.GPUs)
+	}
+	if got.Reliability.Stability != 98.41 {
+		t.Errorf("Reliability.Stability = %v, want 98.41", got.Reliability.Stability)
+	}
+	if got.Location.City != "Bilychi" || got.Location.Country != "Ukraine" {
+		t.Errorf("Location = %+v", got.Location)
 	}
 }
 

@@ -73,6 +73,104 @@ type Node struct {
 	} `json:"system"`
 }
 
+// NodeDetail is the response shape of GET /nodes/:id (see [NodesResource.Find]).
+//
+// IMPORTANT: this endpoint uses a DIFFERENT JSON envelope than GET /nodes,
+// which is why it needs its own type instead of reusing [Node]:
+//
+//   - the hardware/system block is nested under "data" (not "system");
+//   - memory fields use total_memory / free_memory (not size / free);
+//   - the agent version is data.version (not the top-level "osn");
+//   - it carries detail-only blocks (reliability, account_id, features);
+//   - node prices are NOT returned here — read them from [NodesResource.List].
+type NodeDetail struct {
+	ID    int64  `json:"id"`
+	IP    string `json:"ip"`
+	State string `json:"state"`
+	VrfDt string `json:"vrf_dt"`
+
+	AccountID int64    `json:"account_id"`
+	Features  []string `json:"features"`
+
+	Data        NodeData        `json:"data"`
+	Reliability NodeReliability `json:"reliability"`
+	Location    NodeLocation    `json:"location"`
+}
+
+// NodeData is the "data" block of GET /nodes/:id: the node's hardware and
+// agent state. Uptime and the agent Version live here (unlike [Node], where
+// uptime/osn sit at the top level).
+type NodeData struct {
+	Arch             string  `json:"arch"`
+	CPUCores         int     `json:"cpu_cores"`
+	CPULoadPercent   float64 `json:"cpu_load_percent"`
+	CPUModelName     string  `json:"cpu_model_name"`
+	CPUVendorID      string  `json:"cpu_vendor_id"`
+	OSVersion        string  `json:"os_version"`
+	KernelVersion    string  `json:"kernel_version"`
+	LinuxDistro      string  `json:"linux_distro"`
+	LinuxRelease     string  `json:"linux_release"`
+	CUDAVersion      string  `json:"cuda_version"`
+	GPUDriverVersion string  `json:"gpu_driver_version"`
+	GPUVendor        string  `json:"gpu_vendor"`
+	Virt             string  `json:"virt"`
+	Uptime           int64   `json:"uptime"`  // seconds since agent start
+	Version          string  `json:"version"` // node agent version (a.k.a. OSN)
+
+	Disk   NodeDisk   `json:"disk"`
+	Memory NodeMemory `json:"memory"`
+	GPUs   []GPU      `json:"gpus"`
+}
+
+// NodeDisk is the disk block from the node detail endpoint.
+type NodeDisk struct {
+	Free        int64   `json:"free"`
+	Size        int64   `json:"size"`
+	Used        int64   `json:"used"`
+	UsedPercent float64 `json:"used_percent"`
+}
+
+// NodeMemory is the memory block from GET /nodes/:id. It uses
+// total_memory / free_memory naming and exposes swap and cache detail that the
+// list endpoint's memory block does not.
+type NodeMemory struct {
+	TotalMemory     int64 `json:"total_memory"`
+	FreeMemory      int64 `json:"free_memory"`
+	AvailableMemory int64 `json:"available_memory"`
+	CachedMemory    int64 `json:"cached_memory"`
+	BufferedMemory  int64 `json:"buffered_memory"`
+	TotalSwap       int64 `json:"total_swap"`
+	FreeSwap        int64 `json:"free_swap"`
+}
+
+// NodeReliability is the "reliability" block of the node detail endpoint.
+type NodeReliability struct {
+	Uptime    int     `json:"uptime"`    // percentage
+	Stability float64 `json:"stability"` // percentage
+	SAvgD     int64   `json:"s_avg_d"`
+	SMaxD     int64   `json:"s_max_d"`
+	SFailed   int     `json:"s_failed"`
+	SNormal   int     `json:"s_normal"`
+	Rating    struct {
+		Count int     `json:"count"`
+		Score float64 `json:"score"`
+	} `json:"rating"`
+}
+
+// NodeLocation is the richer location block returned by the node detail
+// endpoint (a superset of [Node]'s inline location).
+type NodeLocation struct {
+	City         string  `json:"city"`
+	Country      string  `json:"country"`
+	Continent    string  `json:"continent"`
+	ISOCode      string  `json:"isocode"`
+	Latitude     float64 `json:"latitude"`
+	Longitude    float64 `json:"longitude"`
+	Organisation string  `json:"organisation"`
+	Provider     string  `json:"provider"`
+	Hostname     string  `json:"hostname"`
+}
+
 // ListNodesParams contains optional filter parameters for [NodesResource.List].
 type ListNodesParams struct {
 	Country *string // filter by ISO country code, e.g. "US" or "DE"
@@ -115,9 +213,13 @@ func nodeListValues(params *ListNodesParams) url.Values {
 
 // Find returns a single compute node by its numeric ID.
 //
+// The detail endpoint returns a different JSON envelope than [NodesResource.List],
+// so it decodes into [NodeDetail] (not [Node]). Notably, node prices are not
+// available here — use [NodesResource.List] if you need pricing.
+//
 // GET /nodes/:id
-func (r *NodesResource) Find(ctx context.Context, nodeID int64) (*Node, error) {
-	var node Node
+func (r *NodesResource) Find(ctx context.Context, nodeID int64) (*NodeDetail, error) {
+	var node NodeDetail
 	return &node, r.c.get(ctx, fmt.Sprintf("/nodes/%d", nodeID), nil, &node)
 }
 
