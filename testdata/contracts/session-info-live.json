@@ -1,0 +1,11 @@
+{
+  "account_id": 404,
+  "duration": 20,
+  "is_ready": true,
+  "kind": "base",
+  "node_id": 101,
+  "service": "mr",
+  "started_at": 1784700000000,
+  "user_envs": {"EXAMPLE": "value"},
+  "uuid": "00000000-0000-4000-8000-000000000003"
+}

@@ -65,8 +65,10 @@ type Node struct {
 		GPUs []GPU `json:"gpus"`
 
 		Memory struct {
-			Free int64 `json:"free"`
-			Size int64 `json:"size"`
+			Free        int64   `json:"free"`
+			Size        int64   `json:"size"`
+			Used        int64   `json:"used"`
+			UsedPercent float64 `json:"used_percent"`
 		} `json:"memory"`
 	} `json:"system"`
 }
@@ -85,17 +87,30 @@ type NodesResource struct{ c *Client }
 //
 // GET /nodes
 func (r *NodesResource) List(ctx context.Context, params *ListNodesParams) ([]Node, error) {
-	qp := url.Values{}
-	if params != nil {
-		if params.Country != nil {
-			qp.Set("country", *params.Country)
-		}
-		if params.AppUUID != nil {
-			qp.Set("app_uuid", *params.AppUUID)
-		}
-	}
+	qp := nodeListValues(params)
 	var nodes []Node
 	return nodes, r.c.get(ctx, "/nodes", qp, &nodes)
+}
+
+// ListRaw returns the unmodified JSON body from the nodes endpoint.
+//
+// GET /nodes
+func (r *NodesResource) ListRaw(ctx context.Context, params *ListNodesParams) ([]byte, error) {
+	return r.c.getRawParams(ctx, "/nodes", nodeListValues(params))
+}
+
+func nodeListValues(params *ListNodesParams) url.Values {
+	qp := url.Values{}
+	if params == nil {
+		return qp
+	}
+	if params.Country != nil {
+		qp.Set("country", *params.Country)
+	}
+	if params.AppUUID != nil {
+		qp.Set("app_uuid", *params.AppUUID)
+	}
+	return qp
 }
 
 // Find returns a single compute node by its numeric ID.

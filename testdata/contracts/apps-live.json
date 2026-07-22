@@ -1,0 +1,15 @@
+[
+  {
+    "uuid": "00000000-0000-4000-8000-000000000001",
+    "name": "Sanitized App",
+    "image": "example/app:latest",
+    "category": "Development",
+    "description": "Sanitized contract fixture",
+    "envs": {"STRING_VALUE": "value", "BOOLEAN_VALUE": false},
+    "ports": "[22,8080]",
+    "http_ports": [8080],
+    "start_command": "run-app",
+    "personal": false,
+    "extra": {"min_disk_size": 5}
+  }
+]

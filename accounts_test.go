@@ -146,3 +146,14 @@ func TestAccounts_GenerateWallet(t *testing.T) {
 		t.Errorf("Wallet = %q, want %q", got.Wallet, want.Wallet)
 	}
 }
+
+func TestAccounts_GenerateWallet_DecodesDocumentedAddress(t *testing.T) {
+	c, _ := newTestClient(t, statusHandler(201, `{"address":"0x-sanitized"}`))
+	account, err := c.Accounts.GenerateWallet(context.Background())
+	if err != nil {
+		t.Fatalf("GenerateWallet: %v", err)
+	}
+	if account.Address != "0x-sanitized" {
+		t.Errorf("Address = %q", account.Address)
+	}
+}

@@ -2,6 +2,7 @@ package octaspace
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -62,7 +63,8 @@ func TestApps_List_FullPayload(t *testing.T) {
 		"image": "jupyter/datascience:latest",
 		"category": "ml",
 		"description": "GPU-accelerated Jupyter Lab",
-		"envs": {"JUPYTER_TOKEN": ""},
+		"start_command": "jupyter lab --ip=0.0.0.0",
+		"envs": {"JUPYTER_TOKEN": "", "WEBUI_AUTH": false},
 		"ports": "[8888]",
 		"http_ports": "[8888]",
 		"personal": false,
@@ -83,6 +85,9 @@ func TestApps_List_FullPayload(t *testing.T) {
 	if a.Description != "GPU-accelerated Jupyter Lab" {
 		t.Errorf("Description = %q", a.Description)
 	}
+	if a.StartCommand != "jupyter lab --ip=0.0.0.0" {
+		t.Errorf("StartCommand = %q", a.StartCommand)
+	}
 	if len(a.Ports) != 1 || a.Ports[0] != 8888 {
 		t.Errorf("Ports = %v", a.Ports)
 	}
@@ -100,6 +105,26 @@ func TestApps_List_FullPayload(t *testing.T) {
 	}
 	if _, ok := a.Envs["JUPYTER_TOKEN"]; !ok {
 		t.Error("Envs missing JUPYTER_TOKEN key")
+	}
+	if got, ok := a.Envs["WEBUI_AUTH"].(bool); !ok || got {
+		t.Errorf("Envs[WEBUI_AUTH] = %#v, want false", a.Envs["WEBUI_AUTH"])
+	}
+	encoded, err := json.Marshal(a)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	if !strings.Contains(string(encoded), `"start_command":"jupyter lab --ip=0.0.0.0"`) {
+		t.Errorf("re-marshaled app lost start_command: %s", encoded)
+	}
+}
+
+func TestApp_UnmarshalJSON_ClearsStaleFields(t *testing.T) {
+	app := App{StartCommand: "old", Ports: []int{80}}
+	if err := json.Unmarshal([]byte(`{"uuid":"new","ports":"[]"}`), &app); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if app.StartCommand != "" || len(app.Ports) != 0 {
+		t.Errorf("app = %+v, stale fields were retained", app)
 	}
 }
 

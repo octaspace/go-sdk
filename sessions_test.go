@@ -2,6 +2,7 @@ package octaspace
 
 import (
 	"context"
+	"encoding/json"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
@@ -101,6 +102,32 @@ func TestSessionProxy_Info(t *testing.T) {
 	}
 	if got.ChargeAmount.Cmp(want.ChargeAmount.Int) != 0 {
 		t.Errorf("ChargeAmount = %s, want %s", got.ChargeAmount.Int, want.ChargeAmount.Int)
+	}
+}
+
+func TestSessionInfo_UnmarshalFullPayloadAndConfigAlias(t *testing.T) {
+	var info SessionInfo
+	payload := []byte(`{
+		"uuid":"session-1","service":"mr","kind":"base","app_name":"Jupyter","app_logo":"logo",
+		"node_id":7,"progress":"ready","is_ready":true,"duration":"3600","started_at":1712700000,
+		"public_ip":"1.2.3.4","ip":"10.0.0.2","container_id":"container","country":"Germany","country_iso":"DE","city":"Berlin",
+		"ports_matrix":{"22":"10022"},"ssh_direct":{"host":"1.2.3.4","port":10022},"ssh_proxy":{"host":"proxy","port":22},"ssh_web":"https://ssh.example",
+		"urls":{"8080":"https://example"},"user_envs":{"AUTH":false},"vpn_config":"vpn-data","tx":"1024","rx":512,
+		"charge_amount":"5000000000000000","termination_reason":"3",
+		"prices":{"base_usd":3,"currency_usd":true,"market_price":1234.5},
+		"node_hw":{"cpu":"Ryzen","cpu_cores":8,"gpu":[{"model":"RTX","mem_total_mb":24576}],"total_memory":34359738368,"disk":100000000000}
+	}`)
+	if err := json.Unmarshal(payload, &info); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if info.VPNConfig != "vpn-data" || info.TX != 1024 || info.RX != 512 || info.Duration.Int64() != 3600 {
+		t.Errorf("core info = %+v", info)
+	}
+	if info.PortsMatrix["22"].Int64() != 10022 || info.SSHWeb == "" || info.UserEnvs["AUTH"] != false {
+		t.Errorf("connection fields = %+v", info)
+	}
+	if info.NodeHW.GPU[0].Model != "RTX" || info.Prices.MarketPrice != 1234.5 || info.TerminationReason.Int64() != 3 {
+		t.Errorf("metadata = %+v", info)
 	}
 }
 

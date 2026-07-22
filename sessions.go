@@ -16,16 +16,23 @@ type SSHEndpoint struct {
 // Note: the /sessions and /sessions?recent=true endpoints return overlapping
 // but not identical field sets. Fields absent in a response are zero-valued.
 type Session struct {
-	UUID    string `json:"uuid"`
-	Service string `json:"service"`
-	AppName string `json:"app_name"`
-	AppLogo string `json:"app_logo"`
-	NodeID  int64  `json:"node_id"`
+	UUID      string `json:"uuid"`
+	AccountID int64  `json:"account_id"`
+	Service   string `json:"service"`
+	Kind      string `json:"kind"`
+	AppName   string `json:"app_name"`
+	AppLogo   string `json:"app_logo"`
+	NodeID    int64  `json:"node_id"`
 
 	// Runtime state (present in active sessions)
-	Progress string `json:"progress"`
-	IsReady  bool   `json:"is_ready"`
-	PublicIP string `json:"public_ip"`
+	Progress    string `json:"progress"`
+	IsReady     bool   `json:"is_ready"`
+	PublicIP    string `json:"public_ip"`
+	IP          string `json:"ip"`
+	Country     string `json:"country"`
+	CountryISO  string `json:"country_iso"`
+	City        string `json:"city"`
+	ContainerID string `json:"container_id"`
 
 	// Timing — returned as a bare integer or a quoted string depending on endpoint;
 	// FlexInt64 handles both transparently.
@@ -43,8 +50,11 @@ type Session struct {
 
 	SSHDirect SSHEndpoint `json:"ssh_direct"`
 	SSHProxy  SSHEndpoint `json:"ssh_proxy"`
+	SSHWeb    string      `json:"ssh_web"`
 
-	URLs map[string]string `json:"urls"`
+	PortsMatrix map[string]FlexInt64 `json:"ports_matrix"`
+	URLs        map[string]string    `json:"urls"`
+	UserEnvs    map[string]any       `json:"user_envs"`
 
 	Prices struct {
 		BaseUSD     int     `json:"base_usd"`
@@ -77,10 +87,22 @@ type SessionsResource struct{ c *Client }
 //
 // GET /sessions
 func (r *SessionsResource) List(ctx context.Context, params *ListSessionsParams) ([]Session, error) {
+	qp := sessionListValues(params)
+	var sessions []Session
+	return sessions, r.c.get(ctx, "/sessions", qp, &sessions)
+}
+
+// ListRaw returns the unmodified JSON body from the sessions endpoint.
+//
+// GET /sessions
+func (r *SessionsResource) ListRaw(ctx context.Context, params *ListSessionsParams) ([]byte, error) {
+	return r.c.getRawParams(ctx, "/sessions", sessionListValues(params))
+}
+
+func sessionListValues(params *ListSessionsParams) url.Values {
 	qp := url.Values{}
 	if params != nil && params.Recent != nil && *params.Recent {
 		qp.Set("recent", "true")
 	}
-	var sessions []Session
-	return sessions, r.c.get(ctx, "/sessions", qp, &sessions)
+	return qp
 }
