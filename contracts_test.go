@@ -67,6 +67,26 @@ func TestContractFixtures_DecodeTypedModels(t *testing.T) {
 		t.Errorf("session-info contract fields lost: %+v", info)
 	}
 
+	// Compute (MR) sessions return container_id as a JSON array (one entry per
+	// container), unlike VPN sessions where the field is absent entirely. This
+	// previously broke decoding of the whole /sessions list and /services/:uuid/info
+	// for any account with an active compute rental — see FlexString.
+	var activeSessions []Session
+	if err := json.Unmarshal(contractFixture(t, "sessions-active-mr-live.json"), &activeSessions); err != nil {
+		t.Fatalf("active mr sessions: %v", err)
+	}
+	if activeSessions[0].ContainerID.String() == "" || activeSessions[0].ChargeAmount.Int == nil {
+		t.Errorf("active-mr-session contract fields lost: %+v", activeSessions[0])
+	}
+
+	var mrInfo SessionInfo
+	if err := json.Unmarshal(contractFixture(t, "session-info-mr-live.json"), &mrInfo); err != nil {
+		t.Fatalf("mr session info: %v", err)
+	}
+	if mrInfo.ContainerID.String() == "" || mrInfo.TX == 0 {
+		t.Errorf("mr-session-info contract fields lost: %+v", mrInfo)
+	}
+
 	var logs SessionLogs
 	if err := json.Unmarshal(contractFixture(t, "session-logs-live.json"), &logs); err != nil {
 		t.Fatalf("session logs: %v", err)

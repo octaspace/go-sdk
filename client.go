@@ -41,7 +41,7 @@ import (
 )
 
 // Version is the current SDK version, embedded in the default User-Agent header.
-const Version = "0.3.0"
+const Version = "0.5.0"
 
 const (
 	defaultBaseURL    = "https://api.octa.space"

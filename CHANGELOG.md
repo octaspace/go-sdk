@@ -7,6 +7,28 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.5.0] - 2026-07-22
+
+### Fixed
+
+- `Session.ContainerID` and `SessionInfo.ContainerID` now decode compute (MR)
+  sessions correctly. The live API returns `container_id` as a JSON array for
+  compute sessions (absent entirely for VPN sessions), but the field was typed
+  as a bare `string`; any account with an active compute rental hit a decode
+  error on the *entire* `/sessions` list and `/services/:uuid/info`, not just
+  that one field. Verified against a live account with an active session.
+
+### Changed
+
+- **Breaking:** `Session.ContainerID` and `SessionInfo.ContainerID` are now
+  `FlexString` instead of `string`. `FlexString` behaves like a normal string
+  (`.String()`, comparable to string literals) but accepts both the legacy
+  bare-string and the current array-of-strings shape, joining multiple
+  container IDs with `", "`. Callers holding these fields in an explicitly
+  `string`-typed variable need `.String()` or an explicit conversion.
+
+---
+
 ## [0.4.0] - 2026-07-22
 
 ### Fixed
