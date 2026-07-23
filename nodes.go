@@ -114,12 +114,21 @@ type NodeData struct {
 	GPUDriverVersion string  `json:"gpu_driver_version"`
 	GPUVendor        string  `json:"gpu_vendor"`
 	Virt             string  `json:"virt"`
-	Uptime           int64   `json:"uptime"`  // seconds since agent start
-	Version          string  `json:"version"` // node agent version (a.k.a. OSN)
+	// GDM reports whether a desktop display manager is available on the node.
+	GDM      bool   `json:"gdm"`
+	IsHiveOS bool   `json:"is_hive_os"`
+	IsWSL    bool   `json:"is_wsl"`
+	GPUPT    bool   `json:"gpu_pt"`
+	Uptime   int64  `json:"uptime"`  // seconds since agent start
+	Version  string `json:"version"` // node agent version (a.k.a. OSN)
 
-	Disk   NodeDisk   `json:"disk"`
-	Memory NodeMemory `json:"memory"`
-	GPUs   []GPU      `json:"gpus"`
+	Disk       NodeDisk       `json:"disk"`
+	Memory     NodeMemory     `json:"memory"`
+	MemorySpec NodeMemorySpec `json:"memory_spec"`
+	GPUs       []GPU          `json:"gpus"`
+	// GPU is the legacy vendor-grouped GPU representation, also returned by
+	// the node-detail endpoint alongside the flat GPUs list.
+	GPU GPUByVendor `json:"gpu"`
 }
 
 // NodeDisk is the disk block from the node detail endpoint.
@@ -143,6 +152,12 @@ type NodeMemory struct {
 	FreeSwap        int64 `json:"free_swap"`
 }
 
+// NodeMemorySpec describes installed memory reported by GET /nodes/:id.
+type NodeMemorySpec struct {
+	Speed int    `json:"speed"`
+	Type  string `json:"type"`
+}
+
 // NodeReliability is the "reliability" block of the node detail endpoint.
 type NodeReliability struct {
 	Uptime    int     `json:"uptime"`    // percentage
@@ -160,15 +175,28 @@ type NodeReliability struct {
 // NodeLocation is the richer location block returned by the node detail
 // endpoint (a superset of [Node]'s inline location).
 type NodeLocation struct {
-	City         string  `json:"city"`
-	Country      string  `json:"country"`
-	Continent    string  `json:"continent"`
-	ISOCode      string  `json:"isocode"`
-	Latitude     float64 `json:"latitude"`
-	Longitude    float64 `json:"longitude"`
-	Organisation string  `json:"organisation"`
-	Provider     string  `json:"provider"`
-	Hostname     string  `json:"hostname"`
+	City          string              `json:"city"`
+	Country       string              `json:"country"`
+	Continent     string              `json:"continent"`
+	ContinentCode string              `json:"continentcode"`
+	ISOCode       string              `json:"isocode"`
+	Latitude      float64             `json:"latitude"`
+	Longitude     float64             `json:"longitude"`
+	Organisation  string              `json:"organisation"`
+	Provider      string              `json:"provider"`
+	Hostname      string              `json:"hostname"`
+	IP            string              `json:"ip"`
+	Proxy         string              `json:"proxy"`
+	Risk          int                 `json:"risk"`
+	Type          string              `json:"type"`
+	Devices       NodeLocationDevices `json:"devices"`
+}
+
+// NodeLocationDevices contains the address and subnet counts attributed to a
+// node location by GET /nodes/:id.
+type NodeLocationDevices struct {
+	Address int `json:"address"`
+	Subnet  int `json:"subnet"`
 }
 
 // ListNodesParams contains optional filter parameters for [NodesResource.List].

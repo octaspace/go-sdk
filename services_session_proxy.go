@@ -52,18 +52,43 @@ type SessionInfo struct {
 
 // SessionPrices contains the pricing metadata included in session details.
 type SessionPrices struct {
-	BaseUSD     int     `json:"base_usd"`
-	CurrencyUSD bool    `json:"currency_usd"`
-	MarketPrice float64 `json:"market_price"`
+	// Raw Wei price components returned by active-session endpoints.
+	Base    BigInt `json:"base"`
+	Storage BigInt `json:"storage"`
+	Traffic BigInt `json:"traffic"`
+
+	BaseUSD      int     `json:"base_usd"`
+	StorageUSD   int     `json:"storage_usd"`
+	TrafficUSD   int     `json:"traffic_usd"`
+	CurrencyUSD  bool    `json:"currency_usd"`
+	MarketPrice  float64 `json:"market_price"`
+	BaseEther    float64 `json:"base_ether"`
+	StorageEther float64 `json:"storage_ether"`
+	TrafficEther float64 `json:"traffic_ether"`
 }
 
 // SessionNodeHW describes the hardware used by a session.
 type SessionNodeHW struct {
-	CPU         string           `json:"cpu"`
-	CPUCores    int              `json:"cpu_cores"`
-	GPU         []SessionNodeGPU `json:"gpu"`
-	TotalMemory int64            `json:"total_memory"`
-	Disk        int64            `json:"disk"`
+	CPU          string              `json:"cpu"`
+	CPUCores     int                 `json:"cpu_cores"`
+	GPU          []SessionNodeGPU    `json:"gpu"`
+	TotalMemory  int64               `json:"total_memory"`
+	Disk         int64               `json:"disk"`
+	MemorySpeed  int                 `json:"memory_speed"`
+	MemoryType   string              `json:"memory_type"`
+	NetDownMbits int64               `json:"net_down_mbits"`
+	NetUpMbits   int64               `json:"net_up_mbits"`
+	DiskSpeedMBS int                 `json:"disk_speed_mbs"`
+	GPUVendor    string              `json:"gpu_vendor"`
+	Location     SessionNodeLocation `json:"location"`
+}
+
+// SessionNodeLocation identifies the location of the machine serving an
+// active session.
+type SessionNodeLocation struct {
+	City    string `json:"city"`
+	Country string `json:"country"`
+	ISOCode string `json:"isocode"`
 }
 
 // SessionNodeGPU describes a GPU included in [SessionNodeHW].

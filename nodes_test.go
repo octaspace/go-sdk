@@ -154,11 +154,17 @@ func TestNodes_Find(t *testing.T) {
 	if len(got.Data.GPUs) != 1 || got.Data.GPUs[0].Model != "NVIDIA GeForce RTX 3090" {
 		t.Errorf("Data.GPUs = %+v", got.Data.GPUs)
 	}
+	if !got.Data.GPUPT || got.Data.MemorySpec.Speed != 3200 || got.Data.MemorySpec.Type != "DDR4" || len(got.Data.GPU.NVIDIA) != 1 {
+		t.Errorf("Data live-only fields lost: %+v", got.Data)
+	}
 	if got.Reliability.Stability != 98.41 {
 		t.Errorf("Reliability.Stability = %v, want 98.41", got.Reliability.Stability)
 	}
 	if got.Location.City != "Bilychi" || got.Location.Country != "Ukraine" {
 		t.Errorf("Location = %+v", got.Location)
+	}
+	if got.Location.ContinentCode != "EU" || got.Location.Devices.Subnet != 38 || got.Location.Proxy != "no" {
+		t.Errorf("Location detail fields lost: %+v", got.Location)
 	}
 }
 
