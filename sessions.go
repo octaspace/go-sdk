@@ -59,22 +59,8 @@ type Session struct {
 	URLs        map[string]string    `json:"urls"`
 	UserEnvs    map[string]any       `json:"user_envs"`
 
-	Prices struct {
-		BaseUSD     int     `json:"base_usd"`
-		CurrencyUSD bool    `json:"currency_usd"`
-		MarketPrice float64 `json:"market_price"`
-	} `json:"prices"`
-
-	NodeHW struct {
-		CPU      string `json:"cpu"`
-		CPUCores int    `json:"cpu_cores"`
-		GPU      []struct {
-			Model      string `json:"model"`
-			MemTotalMB int    `json:"mem_total_mb"`
-		} `json:"gpu"`
-		TotalMemory int64 `json:"total_memory"`
-		Disk        int64 `json:"disk"`
-	} `json:"node_hw"`
+	Prices SessionPrices `json:"prices"`
+	NodeHW SessionNodeHW `json:"node_hw"`
 }
 
 // ListSessionsParams contains optional filter parameters for [SessionsResource.List].

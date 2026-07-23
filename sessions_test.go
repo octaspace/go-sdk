@@ -114,8 +114,8 @@ func TestSessionInfo_UnmarshalFullPayloadAndConfigAlias(t *testing.T) {
 		"ports_matrix":{"22":"10022"},"ssh_direct":{"host":"1.2.3.4","port":10022},"ssh_proxy":{"host":"proxy","port":22},"ssh_web":"https://ssh.example",
 		"urls":{"8080":"https://example"},"user_envs":{"AUTH":false},"vpn_config":"vpn-data","tx":"1024","rx":512,
 		"charge_amount":"5000000000000000","termination_reason":"3",
-		"prices":{"base_usd":3,"currency_usd":true,"market_price":1234.5},
-		"node_hw":{"cpu":"Ryzen","cpu_cores":8,"gpu":[{"model":"RTX","mem_total_mb":24576}],"total_memory":34359738368,"disk":100000000000}
+		"prices":{"base":"1000000000000000","storage":2,"traffic":3,"base_usd":3,"storage_usd":4,"traffic_usd":5,"currency_usd":true,"market_price":1234.5,"base_ether":0.1,"storage_ether":0.2,"traffic_ether":0.3},
+		"node_hw":{"cpu":"Ryzen","cpu_cores":8,"gpu":[{"model":"RTX","mem_total_mb":24576}],"total_memory":34359738368,"disk":100000000000,"memory_speed":3200,"memory_type":"DDR4","net_down_mbits":1000000,"net_up_mbits":500000,"disk_speed_mbs":900,"gpu_vendor":"nvidia","location":{"city":"Berlin","country":"Germany","isocode":"DE"}}
 	}`)
 	if err := json.Unmarshal(payload, &info); err != nil {
 		t.Fatalf("Unmarshal: %v", err)
@@ -128,6 +128,9 @@ func TestSessionInfo_UnmarshalFullPayloadAndConfigAlias(t *testing.T) {
 	}
 	if info.NodeHW.GPU[0].Model != "RTX" || info.Prices.MarketPrice != 1234.5 || info.TerminationReason.Int64() != 3 {
 		t.Errorf("metadata = %+v", info)
+	}
+	if info.Prices.Base.String() != "1000000000000000" || info.Prices.StorageUSD != 4 || info.Prices.TrafficEther != 0.3 || info.NodeHW.MemorySpeed != 3200 || info.NodeHW.Location.ISOCode != "DE" {
+		t.Errorf("live session fields lost: %+v", info)
 	}
 }
 
