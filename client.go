@@ -124,7 +124,7 @@ func WithBaseURL(baseURL string) Option {
 //	client := octaspace.NewClient(apiKey,
 //	    octaspace.WithBaseURLs([]string{
 //	        "https://api.octa.space",
-//	        "https://api-backup.octa.space",
+//	        "https://api.octa.computer",
 //	    }),
 //	)
 func WithBaseURLs(urls []string) Option {

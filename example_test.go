@@ -28,7 +28,7 @@ func ExampleNewClient_options() {
 		os.Getenv("OCTA_API_KEY"),
 		octaspace.WithBaseURLs([]string{
 			"https://api.octa.space",
-			"https://api-backup.octa.space", // failover if primary is unreachable
+			"https://api.octa.computer", // failover if primary is unreachable
 		}),
 		octaspace.WithTimeout(15_000_000_000), // 15s per-request timeout
 		octaspace.WithMaxRetries(3),
@@ -45,7 +45,7 @@ func ExampleWithBaseURLs() {
 		os.Getenv("OCTA_API_KEY"),
 		octaspace.WithBaseURLs([]string{
 			"https://api.octa.space",
-			"https://api-backup.octa.space",
+			"https://api.octa.computer",
 		}),
 	)
 	_ = client
