@@ -1,30 +1,24 @@
-// Package octaspace provides a Go client library for the OctaSpace API.
+// Package octaspace is a Go client for the OctaSpace API (next generation).
 //
 // Basic usage:
 //
 //	client := octaspace.NewClient(os.Getenv("OCTA_API_KEY"))
-//	account, err := client.Accounts.Profile(ctx)
+//	machines, err := client.Compute.List(ctx)
 //
-// The client is organized into resource sub-clients that mirror the API structure:
+// The client is organized into resources that mirror the API:
 //
-//	client.Accounts         – account balance (profile and wallet: legacy API)
-//	client.Nodes            – compute node listing and management
-//	client.Sessions         – running sessions: list, info, logs, stop, wait until ready
-//	client.Apps             – available application catalog
-//	client.Network          – public platform statistics
-//	client.Stats            – public GPU market statistics
-//	client.Hosting          – the account's nodes and their prices
-//	client.Compute          – machines for rent, start/restart compute sessions
-//	client.Render           – render nodes, start render sessions
-//	client.Services.MR      – legacy machine rental (removed with the legacy API)
-//	client.Services.R       – legacy render workers (removed with the legacy API)
-//	client.Services.VPN     – VPN service
-//	client.IdleJobs         – idle job inspection
+//	client.Compute  – machines for rent; start, batch start and restart compute sessions
+//	client.Render   – render nodes; start render sessions
+//	client.Sessions – running sessions: list, info, logs, stop, wait until ready
+//	client.Hosting  – the account's nodes and their prices
+//	client.Accounts – account balance
+//	client.Network  – public platform statistics
+//	client.Stats    – public GPU market statistics
 //
 // All methods accept a [context.Context] as the first argument and return a
 // typed value and an error. Errors are one of the types defined in errors.go
 // and can be inspected with [errors.As] or the helper functions [IsNotFound],
-// [IsRateLimit], and [IsAuthError].
+// [IsValidation], [IsConflict], [IsRateLimit], and [IsAuthError].
 package octaspace
 
 import (
@@ -206,17 +200,13 @@ func WithUserAgent(ua string) Option {
 // It is safe for concurrent use. Create one with [NewClient].
 type Client struct {
 	cfg      *config
-	Accounts *AccountsResource
-	Nodes    *NodesResource
-	Sessions *SessionsResource
-	Apps     *AppsResource
-	Network  *NetworkResource
 	Compute  *ComputeResource
 	Render   *RenderResource
+	Sessions *SessionsResource
 	Hosting  *HostingResource
+	Accounts *AccountsResource
+	Network  *NetworkResource
 	Stats    *StatsResource
-	Services *ServicesResource
-	IdleJobs *IdleJobsResource
 }
 
 // newDefaultTransport returns an http.Transport tuned for SDK use:
@@ -246,22 +236,13 @@ func NewClient(apiKey string, opts ...Option) *Client {
 		opt(cfg)
 	}
 	c := &Client{cfg: cfg}
-	c.Accounts = &AccountsResource{c}
-	c.Nodes = &NodesResource{c}
-	c.Sessions = &SessionsResource{c}
-	c.Apps = &AppsResource{c}
-	c.Network = &NetworkResource{c}
-	c.Services = &ServicesResource{
-		c:   c,
-		MR:  &MachineRentalResource{c},
-		R:   &RenderWorkerResource{c},
-		VPN: &VPNResource{c},
-	}
 	c.Compute = &ComputeResource{c}
 	c.Render = &RenderResource{c}
+	c.Sessions = &SessionsResource{c}
 	c.Hosting = &HostingResource{c}
+	c.Accounts = &AccountsResource{c}
+	c.Network = &NetworkResource{c}
 	c.Stats = &StatsResource{c}
-	c.IdleJobs = &IdleJobsResource{c}
 	return c
 }
 

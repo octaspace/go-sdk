@@ -279,3 +279,16 @@ func TestMachineGPU_OptionalIntsAsStrings(t *testing.T) {
 		t.Error("a non-numeric string should be an error")
 	}
 }
+
+func TestCompute_Restart_ZeroParamsSendEmptyObject(t *testing.T) {
+	// {} keeps the session's original parameters, like nil params.
+	var method, path string
+	var body []byte
+	c, _ := newTestClient(t, captureBody(t, &method, &path, &body, 202, `{"uuid":"u"}`))
+	if _, err := c.Compute.Restart(context.Background(), "u", &ComputeRestartParams{}); err != nil {
+		t.Fatal(err)
+	}
+	if string(body) != `{}` {
+		t.Errorf("body = %q, want {}", body)
+	}
+}

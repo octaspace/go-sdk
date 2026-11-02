@@ -10,7 +10,7 @@ import (
 )
 
 func TestRawMethods_ReturnExactBodyAndEncodeQuery(t *testing.T) {
-	const appsPayload = `[{"uuid":"app-1","new_server_field":{"enabled":true}}]`
+	const machinesPayload = `[{"node_number":"7KQ4-M2XD-4","new_server_field":{"enabled":true}}]`
 	const sessionsPayload = `[{"uuid":"session-1","new_server_field":true}]`
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -18,8 +18,8 @@ func TestRawMethods_ReturnExactBodyAndEncodeQuery(t *testing.T) {
 			t.Errorf("Authorization = %q", got)
 		}
 		switch r.URL.Path {
-		case "/apps":
-			_, _ = w.Write([]byte(appsPayload))
+		case "/services/compute":
+			_, _ = w.Write([]byte(machinesPayload))
 		case "/sessions":
 			_, _ = w.Write([]byte(sessionsPayload))
 		default:
@@ -29,12 +29,12 @@ func TestRawMethods_ReturnExactBodyAndEncodeQuery(t *testing.T) {
 	t.Cleanup(srv.Close)
 	c := NewClient("test-key", WithBaseURL(srv.URL), WithMaxRetries(0))
 
-	apps, err := c.Apps.ListRaw(context.Background())
+	machines, err := c.Compute.ListRaw(context.Background())
 	if err != nil {
-		t.Fatalf("Apps.ListRaw: %v", err)
+		t.Fatalf("Compute.ListRaw: %v", err)
 	}
-	if string(apps) != appsPayload {
-		t.Errorf("Apps.ListRaw = %s, want exact server body", apps)
+	if string(machines) != machinesPayload {
+		t.Errorf("Compute.ListRaw = %s, want exact server body", machines)
 	}
 	sessions, err := c.Sessions.ListRaw(context.Background())
 	if err != nil {
@@ -58,7 +58,7 @@ func TestRawMethods_RetryAndFailover(t *testing.T) {
 	t.Cleanup(good.Close)
 	dead := closedURL(t)
 	c := NewClient("key", WithBaseURLs([]string{dead, good.URL}), WithMaxRetries(1))
-	body, err := c.Apps.ListRaw(context.Background())
+	body, err := c.Compute.ListRaw(context.Background())
 	if err != nil {
 		t.Fatalf("ListRaw: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestRawMethods_TimeoutAndCancellation(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 	c := NewClient("key", WithBaseURL(srv.URL), WithTimeout(20*time.Millisecond), WithMaxRetries(0))
-	if _, err := c.Apps.ListRaw(context.Background()); err == nil {
+	if _, err := c.Compute.ListRaw(context.Background()); err == nil {
 		t.Fatal("timeout error = nil")
 	} else {
 		var networkErr *NetworkError
@@ -85,7 +85,7 @@ func TestRawMethods_TimeoutAndCancellation(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := c.Apps.ListRaw(ctx); err == nil {
+	if _, err := c.Compute.ListRaw(ctx); err == nil {
 		t.Fatal("canceled context error = nil")
 	}
 }

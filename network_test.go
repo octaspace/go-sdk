@@ -55,33 +55,3 @@ func TestNetworkError_Wraps(t *testing.T) {
 		t.Errorf("inner error should be *net.OpError, got %T", netErr.Err)
 	}
 }
-
-func TestNodes_DownloadIdent(t *testing.T) {
-	wantBytes := []byte("identity-file-contents")
-	c, _ := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(200)
-		w.Write(wantBytes)
-	})
-	got, err := c.Nodes.DownloadIdent(context.Background(), 7)
-	if err != nil {
-		t.Fatalf("DownloadIdent: %v", err)
-	}
-	if string(got) != string(wantBytes) {
-		t.Errorf("got %q, want %q", got, wantBytes)
-	}
-}
-
-func TestNodes_DownloadLogs(t *testing.T) {
-	wantBytes := []byte("node log data\n")
-	c, _ := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(200)
-		w.Write(wantBytes)
-	})
-	got, err := c.Nodes.DownloadLogs(context.Background(), 7)
-	if err != nil {
-		t.Fatalf("DownloadLogs: %v", err)
-	}
-	if string(got) != string(wantBytes) {
-		t.Errorf("got %q, want %q", got, wantBytes)
-	}
-}

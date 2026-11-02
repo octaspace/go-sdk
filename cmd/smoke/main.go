@@ -1,13 +1,15 @@
 // smoke is a CLI tool for verifying the OctaSpace Go SDK against a live API.
 //
-// Without OCTA_API_KEY — only the public /network endpoint is tested.
-// With OCTA_API_KEY    — all endpoints are tested.
+// It only reads: nothing is started or changed.
+//
+// Without OCTA_API_KEY — only the public endpoints are tested.
+// With OCTA_API_KEY    — the account endpoints are tested too.
 //
 // Usage:
 //
 //	go run ./cmd/smoke
 //	go run ./cmd/smoke -json
-//	go run ./cmd/smoke -base-url https://api.octa.space -timeout 10s
+//	go run ./cmd/smoke -base-url https://api-dev.octa.space -timeout 10s
 //	OCTA_API_KEY=<key> go run ./cmd/smoke
 package main
 
@@ -72,7 +74,8 @@ type summary struct {
 	Skipped int `json:"skipped"`
 }
 
-// checks is the canonical list of smoke test cases, mirroring ruby-sdk SmokeRunner.
+// checks is the canonical list of smoke test cases: public ones first, then
+// the ones that need an API key.
 var checks = []check{
 	{
 		id: "network.info", label: "client.Network.Info",
@@ -82,28 +85,17 @@ var checks = []check{
 		},
 	},
 	{
-		id: "accounts.profile", label: "client.Accounts.Profile",
-		method: "GET", path: "/accounts", requiresAuth: true,
+		id: "compute.list", label: "client.Compute.List",
+		method: "GET", path: "/services/compute", requiresAuth: false,
 		fn: func(ctx context.Context, c *octaspace.Client) (any, error) {
-			return c.Accounts.Profile(ctx)
+			return c.Compute.List(ctx)
 		},
 	},
 	{
-		id: "accounts.balance", label: "client.Accounts.Balance",
-		method: "GET", path: "/accounts/balance", requiresAuth: true,
+		id: "render.list", label: "client.Render.List",
+		method: "GET", path: "/services/render", requiresAuth: false,
 		fn: func(ctx context.Context, c *octaspace.Client) (any, error) {
-			bal, err := c.Accounts.Balance(ctx)
-			if bal != nil {
-				return bal.Balance.String(), err
-			}
-			return nil, err
-		},
-	},
-	{
-		id: "hosting.nodes", label: "client.Hosting.Nodes",
-		method: "GET", path: "/hosting/nodes", requiresAuth: true,
-		fn: func(ctx context.Context, c *octaspace.Client) (any, error) {
-			return c.Hosting.Nodes(ctx)
+			return c.Render.List(ctx)
 		},
 	},
 	{
@@ -114,6 +106,13 @@ var checks = []check{
 		},
 	},
 	{
+		id: "stats.gpu.history", label: "client.Stats.GPUHistory",
+		method: "GET", path: "/stats/gpu/history", requiresAuth: false,
+		fn: func(ctx context.Context, c *octaspace.Client) (any, error) {
+			return c.Stats.GPUHistory(ctx, nil)
+		},
+	},
+	{
 		id: "stats.gpu.locations", label: "client.Stats.GPULocations",
 		method: "GET", path: "/stats/gpu/locations", requiresAuth: false,
 		fn: func(ctx context.Context, c *octaspace.Client) (any, error) {
@@ -121,53 +120,17 @@ var checks = []check{
 		},
 	},
 	{
-		id: "apps.list", label: "client.Apps.List",
-		method: "GET", path: "/apps", requiresAuth: false,
+		id: "accounts.balance", label: "client.Accounts.Balance",
+		method: "GET", path: "/accounts/balance", requiresAuth: true,
 		fn: func(ctx context.Context, c *octaspace.Client) (any, error) {
-			return c.Apps.List(ctx)
+			return c.Accounts.Balance(ctx)
 		},
 	},
 	{
-		id: "nodes.list", label: "client.Nodes.List",
-		method: "GET", path: "/nodes", requiresAuth: true,
+		id: "hosting.nodes", label: "client.Hosting.Nodes",
+		method: "GET", path: "/hosting/nodes", requiresAuth: true,
 		fn: func(ctx context.Context, c *octaspace.Client) (any, error) {
-			return c.Nodes.List(ctx, nil)
-		},
-	},
-	{
-		id: "nodes.list.filtered", label: "client.Nodes.List(Country)",
-		method: "GET", path: "/nodes?country=US", requiresAuth: true,
-		fn: func(ctx context.Context, c *octaspace.Client) (any, error) {
-			country := "US"
-			return c.Nodes.List(ctx, &octaspace.ListNodesParams{Country: &country})
-		},
-	},
-	{
-		id: "services.mr.list", label: "client.Services.MR.List",
-		method: "GET", path: "/services/mr", requiresAuth: false,
-		fn: func(ctx context.Context, c *octaspace.Client) (any, error) {
-			return c.Services.MR.List(ctx, nil)
-		},
-	},
-	{
-		id: "services.r.list", label: "client.Services.R.List",
-		method: "GET", path: "/services/r", requiresAuth: true,
-		fn: func(ctx context.Context, c *octaspace.Client) (any, error) {
-			return c.Services.R.List(ctx, nil)
-		},
-	},
-	{
-		id: "services.vpn.list", label: "client.Services.VPN.List",
-		method: "GET", path: "/services/vpn", requiresAuth: false,
-		fn: func(ctx context.Context, c *octaspace.Client) (any, error) {
-			return c.Services.VPN.List(ctx, nil)
-		},
-	},
-	{
-		id: "render.list", label: "client.Render.List",
-		method: "GET", path: "/services/render", requiresAuth: false,
-		fn: func(ctx context.Context, c *octaspace.Client) (any, error) {
-			return c.Render.List(ctx)
+			return c.Hosting.Nodes(ctx)
 		},
 	},
 	{
@@ -225,7 +188,7 @@ func firstActiveSessionUUID(ctx context.Context, c *octaspace.Client, computeOnl
 
 func main() {
 	var (
-		baseURL   = flag.String("base-url", "https://api.octa.space", "API base URL")
+		baseURL   = flag.String("base-url", octaspace.BaseURLDev, "API base URL")
 		timeout   = flag.Duration("timeout", 30*time.Second, "per-request timeout")
 		jsonOut   = flag.Bool("json", false, "output results as JSON")
 		onlyCheck = flag.String("only", "", "run only the check with this id")

@@ -166,6 +166,10 @@ func (r *ComputeResource) StartBatch(ctx context.Context, items []ComputeBatchIt
 // was started with. Clearing Entrypoint while keeping Args, for example, turns
 // Args into the command and can stop the session. Pass every parameter the
 // session needs, or nil params to restart with the original ones.
+//
+// Zero fields are left out of the request, so params with every field zero
+// are sent as {}, which the API treats like nil: the original parameters are
+// kept. A restart cannot reset everything to the defaults.
 type ComputeRestartParams struct {
 	DiskSize      int               `json:"disk_size,omitempty"`
 	Envs          map[string]string `json:"envs,omitempty"`
@@ -179,9 +183,9 @@ type ComputeRestartParams struct {
 }
 
 // Restart recreates the container of a running compute session on the same
-// node and returns the session UUID. Nil params restart it with the
-// parameters it was started with; non-nil params replace them as a whole
-// (see [ComputeRestartParams]).
+// node and returns the session UUID. Nil params (or params with every field
+// zero) restart it with the parameters it was started with; other params
+// replace them as a whole (see [ComputeRestartParams]).
 //
 // Restarting is asynchronous: poll the session info for its progress. If the
 // new parameters cannot be set up, the session stops. A session can be
