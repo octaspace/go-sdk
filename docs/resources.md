@@ -15,8 +15,8 @@ unchanged (see [raw JSON](raw-json.md)). Sessions are covered in
 - Machines are identified by `NodeNumber` (e.g. `7KQ4-M2XD-4`). Prices are
   `MicroUSD` (1 = $0.000001; `String()` formats dollars): `BasePrice` per hour,
   `StoragePrice` per GB-hour, `TrafficPrice` per GB. `MinRentMinutes` is the
-  shortest billed rent. `NetDownMbits`/`NetUpMbits` are Mbit/s as documented
-  by the API and are not converted by the SDK.
+  shortest billed rent. `NetDownMbps`/`NetUpMbps` are the measured network
+  speed in whole Mbit/s (0 if not measured).
 - `Start(ctx, *ComputeStartParams)` starts one session and returns its UUID;
   a rejected request is a `*ValidationError` with the reason.
   `StartBatch(ctx, []ComputeBatchItem)` starts several and reports each in a

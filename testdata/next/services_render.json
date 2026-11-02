@@ -12,8 +12,8 @@
     "city": "Mukachevo",
     "country": "Ukraine",
     "node_number": "7R2S-S05E-S",
-    "net_up_mbits": 465.9,
-    "net_down_mbits": 222.1,
+    "net_up_mbps": 466,
+    "net_down_mbps": 222,
     "min_rent_minutes": 10,
     "gpus": [
       {
@@ -48,8 +48,8 @@
     "city": "Mukachevo",
     "country": "Ukraine",
     "node_number": "M95S-WZG8-7",
-    "net_up_mbits": 465.5,
-    "net_down_mbits": 239.5,
+    "net_up_mbps": 466,
+    "net_down_mbps": 240,
     "min_rent_minutes": 0,
     "gpus": [
       {

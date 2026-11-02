@@ -69,8 +69,10 @@ These have no counterpart in the public next API and are gone from the SDK:
 - **Sessions** have `Status` (`starting` / `ready`) instead of `IsReady`, plus
   `Progress` and `PullPercent`. Compute and render sessions share `Session`,
   told apart by `Service`.
-- **Network speed** (`NetDownMbits`, `NetUpMbits`) is Mbit/s as the API
-  documents it. The SDK does no conversion: drop the old `÷125 000` helpers.
+- **Network speed** is `NetDownMbps` / `NetUpMbps` (API fields
+  `net_down_mbps` / `net_up_mbps`): whole Mbit/s, 0 if not measured. The legacy
+  `net_*_mbits` fields carried bytes per second; drop the old `÷125 000`
+  conversions (`NetDownMbps()` / `NetUpMbps()` helpers).
 - **Time** fields keep the API's units: `Session.StartedAt` and log `TS` are
   Unix milliseconds, `NetworkInfo.At` and stats timestamps are Unix seconds.
   Use the `Time()` / `StartedTime()` helpers.

@@ -65,6 +65,10 @@ resource now calls the new endpoints and the legacy API is removed. See the
   `GPULocations` for the public GPU market.
 - `Network.InfoRaw`.
 - `Stats` and `Hosting` read values sent as the string `"null"` as null.
+- Network speed of machines and session nodes is `NetDownMbps` / `NetUpMbps`
+  (`net_down_mbps` / `net_up_mbps`): whole Mbit/s, measured by the API. The
+  legacy `net_*_mbits` fields in bytes per second and their conversion helpers
+  are gone.
 - `MicroUSD` money type (`Dollars()`, `String()`), `MachineGPU`, `Reliability`
   and the `Bool` helper for optional `*bool` parameters.
 - `MachineGPU` tolerates optional integers sent as the string `"null"`, as

@@ -30,10 +30,9 @@ type ComputeMachine struct {
 	DiskType     string  `json:"disk_type"` // "nvme", "ssd", "hdd"; empty if unknown
 	DiskSpeedMBS float64 `json:"disk_speed_mbs"`
 
-	// Network speed in Mbit/s, as the API documents it. Shown as is: the SDK
-	// does no conversion of its own.
-	NetDownMbits float64 `json:"net_down_mbits"`
-	NetUpMbits   float64 `json:"net_up_mbits"`
+	// Network speed in Mbit/s; 0 if not measured.
+	NetDownMbps int `json:"net_down_mbps"`
+	NetUpMbps   int `json:"net_up_mbps"`
 
 	FreePorts int `json:"free_ports"` // service ports still free on the machine
 
@@ -64,8 +63,8 @@ type RenderMachine struct {
 	Memory       int64  `json:"memory"` // free memory, bytes
 	Disk         int64  `json:"disk"`   // free disk space, bytes
 
-	NetDownMbits float64 `json:"net_down_mbits"` // Mbit/s
-	NetUpMbits   float64 `json:"net_up_mbits"`   // Mbit/s
+	NetDownMbps int `json:"net_down_mbps"` // Mbit/s; 0 if not measured
+	NetUpMbps   int `json:"net_up_mbps"`   // Mbit/s; 0 if not measured
 
 	GPUVendor   string       `json:"gpu_vendor"`
 	CUDAVersion string       `json:"cuda_version"`

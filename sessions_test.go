@@ -21,7 +21,7 @@ func TestSession_ReadyFixtureCoversEveryField(t *testing.T) {
 	if s.BasePrice != 100 || s.StoragePrice != 100 || s.TrafficPrice != 100 || s.MinRentMinutes != 0 {
 		t.Errorf("prices = %v %v %v %d", s.BasePrice, s.StoragePrice, s.TrafficPrice, s.MinRentMinutes)
 	}
-	if s.NodeHW == nil || s.NodeHW.Disk != 1 || len(s.NodeHW.GPUs) != 3 || s.NodeHW.NetDownMbits < 100 {
+	if s.NodeHW == nil || s.NodeHW.Disk != 1 || len(s.NodeHW.GPUs) != 3 || s.NodeHW.NetDownMbps != 240 {
 		t.Errorf("node_hw = %+v", s.NodeHW)
 	}
 	if s.SSH.Direct != nil || s.SSH.Proxy != nil || s.SSH.Web != "" {
@@ -247,7 +247,17 @@ func TestSession_SSHProxyOnlyFixture(t *testing.T) {
 	if p := s.SSH.Proxy; p == nil || p.Host == "" || p.Port == 0 || p.User != "root" || s.SSH.Web == "" {
 		t.Errorf("ssh = %+v / %+v", s.SSH, s.SSH.Proxy)
 	}
-	if s.NodeHW == nil || s.NodeHW.Disk == 0 {
+	// Started before the API reported net_*_mbps: node_hw has no speed.
+	if s.NodeHW == nil || s.NodeHW.Disk == 0 || s.NodeHW.NetDownMbps != 0 {
+		t.Errorf("node_hw = %+v", s.NodeHW)
+	}
+}
+
+func TestSession_NetMbpsFixture(t *testing.T) {
+	// A live session started after the API switched to net_*_mbps.
+	var s Session
+	decodeStrict(t, "testdata/next/session_compute_net_mbps.json", &s)
+	if s.NodeHW == nil || s.NodeHW.NetDownMbps != 257 || s.NodeHW.NetUpMbps != 465 {
 		t.Errorf("node_hw = %+v", s.NodeHW)
 	}
 }
