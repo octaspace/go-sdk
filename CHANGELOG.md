@@ -51,7 +51,9 @@ resource now calls the new endpoints and the legacy API is removed. See the
 - `client.Compute` for the new compute API: `List`/`ListRaw`
   (`ComputeMachine`), `Start`, `StartBatch` (`ComputeBatchItem`, `BatchResult`)
   and `Restart` (`ComputeRestartParams`: params with any field set replace the
-  session's parameters as a whole; nil or all-zero params keep them).
+  session's parameters as a whole; nil or all-zero params keep them). Its doc
+  lists the default each left-out field falls back to, e.g. `DiskSize` → 1 GB,
+  not the session's current size.
 - `client.Render` for the new render API: `List`/`ListRaw` (`RenderMachine`),
   `Start`, `StartBatch` (`RenderBatchItem`).
 - `Sessions.WaitReady` polls a session until it is ready, reporting progress
@@ -59,6 +61,9 @@ resource now calls the new endpoints and the legacy API is removed. See the
   session stops meanwhile.
 - Opt-in live compute integration tests (`OCTA_RUN_COMPUTE_INTEGRATION`)
   replace the legacy machine-rental ones.
+- Opt-in live hosting test (`OCTA_RUN_HOSTING_INTEGRATION`, `OCTA_HOSTING_NODE`):
+  changes a node's traffic price, waits until `GET /hosting/nodes` shows it
+  (a 204 from the PATCH alone does not prove that), and restores it.
 - `client.Hosting`: `Nodes`/`NodesRaw` (`HostingNode`) and `SetPrices`
   (`NodePrices`, with the `Price` and `Int` helpers) for the account's nodes.
 - `client.Stats`: `GPUCurrent`, `GPUHistory` (with `GPUHistory.Points`) and

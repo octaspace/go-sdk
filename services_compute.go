@@ -163,9 +163,19 @@ func (r *ComputeResource) StartBatch(ctx context.Context, items []ComputeBatchIt
 //
 // They REPLACE the session's parameters as a whole, they are not merged:
 // a field left zero falls back to the default, not to the value the session
-// was started with. Clearing Entrypoint while keeping Args, for example, turns
-// Args into the command and can stop the session. Pass every parameter the
-// session needs, or nil params to restart with the original ones.
+// was started with. The defaults are:
+//   - DiskSize: 1 GB, NOT the session's current disk size;
+//   - Entrypoint, Args: the image's own;
+//   - StartupScript: none;
+//   - Envs, Ports, HTTPPorts: none;
+//   - SSH, FM: the app's setting, off without an app.
+//
+// Clearing Entrypoint while keeping Args, for example, turns Args into the
+// command and can stop the session. Pass every parameter the session needs,
+// or nil params to restart with the original ones. The API does not expose
+// Entrypoint, Args, StartupScript or DiskSize of a running session (session
+// info shows only envs, ports and SSH/FM as they are now), so keep the start
+// parameters yourself if you need to restart with changes.
 //
 // Zero fields are left out of the request, so params with every field zero
 // are sent as {}, which the API treats like nil: the original parameters are
