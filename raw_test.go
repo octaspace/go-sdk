@@ -14,7 +14,7 @@ func TestRawMethods_ReturnExactBodyAndEncodeQuery(t *testing.T) {
 	const sessionsPayload = `[{"uuid":"session-1","new_server_field":true}]`
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if got := r.Header.Get("Authorization"); got != "test-key" {
+		if got := r.Header.Get("Authorization"); got != "Bearer test-key" {
 			t.Errorf("Authorization = %q", got)
 		}
 		switch r.URL.Path {

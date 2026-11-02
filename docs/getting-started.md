@@ -17,17 +17,28 @@ fmt.Println(account.Email)
 An empty key is valid for public endpoints such as `Network.Info`. The client
 omits the `Authorization` header in that case.
 
+## Authentication
+
+The API takes an account API key (`octa_ak_…`), issued in Cube under
+Profile → Credentials. The client sends it as `Authorization: Bearer <key>`; a
+key pasted together with its `Bearer ` prefix works too. Old account tokens of
+the legacy API are rejected with `401 Invalid bearer token`: issue a new key.
+
 ## Configuration
 
 ```go
 client := octaspace.NewClient(apiKey,
-	octaspace.WithBaseURL("https://api.octa.space"),
+	octaspace.WithBaseURL(octaspace.BaseURLDev), // the default
 	octaspace.WithTimeout(15*time.Second),
 	octaspace.WithMaxRetries(2),
 	octaspace.WithUserAgent("my-service/1.0"),
 	octaspace.WithLogger(octaspace.NewStdLogger(log.Default())),
 )
 ```
+
+The default base URL is `octaspace.BaseURLDev` (`https://api-dev.octa.space`),
+the test stand of the new API; the legacy production hosts still serve the old,
+incompatible API.
 
 `WithBaseURLs` accepts ordered fallback hosts. Failover happens only for
 network failures; API responses, including 5xx, are returned from the first

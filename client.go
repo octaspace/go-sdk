@@ -37,14 +37,20 @@ import (
 	"net/url"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 )
 
 // Version is the current SDK version, embedded in the default User-Agent header.
 const Version = "0.5.0"
 
+// BaseURLDev is the test stand of the next-generation OctaSpace API. It is the
+// default base URL until the production host of the new API is announced; the
+// legacy production hosts still serve the old, incompatible API.
+const BaseURLDev = "https://api-dev.octa.space"
+
 const (
-	defaultBaseURL    = "https://api.octa.space"
+	defaultBaseURL    = BaseURLDev
 	defaultTimeout    = 30 * time.Second
 	defaultMaxRetries = 2
 )
@@ -58,6 +64,9 @@ const (
 	// misconfigured server cannot stall the client indefinitely.
 	maxRetryAfter = 60 * time.Second
 )
+
+// bearerPrefix is the RFC 6750 authorization scheme the API requires.
+const bearerPrefix = "Bearer "
 
 // Logger is the interface for SDK diagnostic logging. It requires Debugf and
 // Errorf methods. The standard library [*log.Logger] does NOT satisfy this
@@ -96,12 +105,15 @@ type config struct {
 	maxRetries int
 	logger     Logger
 	userAgent  string
+
+	rateMu   sync.Mutex
+	lastRate *RateLimit // last RateLimit-* state seen on a response
 }
 
 // Option is a functional option for configuring a [Client].
 type Option func(*config)
 
-// WithBaseURL overrides the API base URL (default: https://api.octa.space).
+// WithBaseURL overrides the API base URL (default: [BaseURLDev]).
 // Equivalent to WithBaseURLs([]string{baseURL}).
 func WithBaseURL(baseURL string) Option {
 	return func(c *config) {
@@ -123,8 +135,8 @@ func WithBaseURL(baseURL string) Option {
 //
 //	client := octaspace.NewClient(apiKey,
 //	    octaspace.WithBaseURLs([]string{
-//	        "https://api.octa.space",
-//	        "https://api-backup.octa.space",
+//	        "https://api-dev.octa.space",
+//	        "https://api-backup.example.com",
 //	    }),
 //	)
 func WithBaseURLs(urls []string) Option {
@@ -210,10 +222,14 @@ func newDefaultTransport() http.RoundTripper {
 }
 
 // NewClient creates a new OctaSpace API client authenticated with apiKey.
-// Pass an empty string to use only unauthenticated public endpoints (e.g. Network.Info).
+//
+// apiKey is an account API key (octa_ak_…), issued in Cube under
+// Profile → Credentials. It is sent as "Authorization: Bearer <apiKey>"; a key
+// that already carries the "Bearer " prefix is accepted as well. Pass an empty
+// string to call only the public endpoints (e.g. Network.Info) anonymously.
 func NewClient(apiKey string, opts ...Option) *Client {
 	cfg := &config{
-		apiKey:     apiKey,
+		apiKey:     normalizeAPIKey(apiKey),
 		baseURLs:   []string{defaultBaseURL},
 		httpClient: &http.Client{Transport: newDefaultTransport()},
 		timeout:    defaultTimeout,
@@ -240,7 +256,49 @@ func NewClient(apiKey string, opts ...Option) *Client {
 	return c
 }
 
+// RateLimit returns the rate limit state from the most recent response that
+// carried RateLimit-* headers, and false if no such response was seen yet.
+// With concurrent calls it reflects whichever response arrived last.
+func (c *Client) RateLimit() (RateLimit, bool) {
+	c.cfg.rateMu.Lock()
+	defer c.cfg.rateMu.Unlock()
+	if c.cfg.lastRate == nil {
+		return RateLimit{}, false
+	}
+	return *c.cfg.lastRate, true
+}
+
 // ---- internal transport ----
+
+// normalizeAPIKey trims whitespace and a leading "Bearer " scheme so that a
+// pasted header value does not end up sent as "Bearer Bearer …".
+func normalizeAPIKey(key string) string {
+	key = strings.TrimSpace(key)
+	if len(key) >= len(bearerPrefix) && strings.EqualFold(key[:len(bearerPrefix)], bearerPrefix) {
+		key = strings.TrimSpace(key[len(bearerPrefix):])
+	}
+	return key
+}
+
+// setHeaders sets the headers every request carries.
+func (c *Client) setHeaders(req *http.Request, accept string) {
+	req.Header.Set("User-Agent", c.cfg.userAgent)
+	req.Header.Set("Accept", accept)
+	if c.cfg.apiKey != "" {
+		req.Header.Set("Authorization", bearerPrefix+c.cfg.apiKey)
+	}
+}
+
+// recordRateLimit remembers the RateLimit-* state of resp, if it has one.
+func (c *Client) recordRateLimit(resp *http.Response) {
+	rl, ok := parseRateLimit(resp.Header)
+	if !ok {
+		return
+	}
+	c.cfg.rateMu.Lock()
+	c.cfg.lastRate = &rl
+	c.cfg.rateMu.Unlock()
+}
 
 // timeoutCtx wraps ctx with the SDK-configured per-request timeout.
 // Returns ctx unchanged (with a no-op cancel) when timeout is 0.
@@ -318,6 +376,11 @@ func (c *Client) withRetry(ctx context.Context, method string, fn func() error) 
 		}
 		var apiErr *APIError
 		if !errors.As(err, &apiErr) || !isRetryable(method, apiErr.StatusCode) {
+			return err
+		}
+		// A server asking to wait longer than we are willing to (e.g. a
+		// per-session cooldown) would refuse the retry again: give up now.
+		if apiErr.RetryAfter > int(maxRetryAfter/time.Second) {
 			return err
 		}
 		delay := retryDelay(attempt, apiErr.RetryAfter)
@@ -405,11 +468,7 @@ func (c *Client) doOnce(ctx context.Context, method, path string, params url.Val
 	if err != nil {
 		return fmt.Errorf("octaspace: build request: %w", err)
 	}
-	req.Header.Set("User-Agent", c.cfg.userAgent)
-	req.Header.Set("Accept", "application/json")
-	if c.cfg.apiKey != "" {
-		req.Header.Set("Authorization", c.cfg.apiKey)
-	}
+	c.setHeaders(req, "application/json")
 	if bodyReader != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -426,6 +485,7 @@ func (c *Client) doOnce(ctx context.Context, method, path string, params url.Val
 		return &NetworkError{Err: err}
 	}
 	defer resp.Body.Close() //nolint:errcheck
+	c.recordRateLimit(resp)
 
 	if c.cfg.logger != nil {
 		c.cfg.logger.Debugf("octaspace: %s %s -> %d (%dms)",
@@ -439,7 +499,8 @@ func (c *Client) doOnce(ctx context.Context, method, path string, params url.Val
 	if resp.StatusCode >= 400 {
 		return errorFromResponse(resp, respBody)
 	}
-	if dst == nil {
+	// 202/204 responses may carry no body at all: leave dst untouched.
+	if dst == nil || len(bytes.TrimSpace(respBody)) == 0 {
 		return nil
 	}
 	if err := json.Unmarshal(respBody, dst); err != nil {
@@ -458,11 +519,7 @@ func (c *Client) doRawOnce(ctx context.Context, path string, params url.Values, 
 	if err != nil {
 		return nil, fmt.Errorf("octaspace: build request: %w", err)
 	}
-	req.Header.Set("User-Agent", c.cfg.userAgent)
-	req.Header.Set("Accept", "*/*")
-	if c.cfg.apiKey != "" {
-		req.Header.Set("Authorization", c.cfg.apiKey)
-	}
+	c.setHeaders(req, "*/*")
 
 	start := time.Now()
 	resp, err := c.cfg.httpClient.Do(req)
@@ -475,6 +532,7 @@ func (c *Client) doRawOnce(ctx context.Context, path string, params url.Values, 
 		return nil, &NetworkError{Err: err}
 	}
 	defer resp.Body.Close() //nolint:errcheck
+	c.recordRateLimit(resp)
 	if c.cfg.logger != nil {
 		c.cfg.logger.Debugf("octaspace: GET %s -> %d (%dms)",
 			path, resp.StatusCode, elapsed.Milliseconds())

@@ -23,10 +23,51 @@ func (e *NetworkError) Unwrap() error { return e.Err }
 // (HTTP 4xx or 5xx). Callers should prefer [errors.As] to unwrap a specific
 // subtype such as [*NotFoundError] rather than comparing StatusCode directly.
 type APIError struct {
-	StatusCode int    // HTTP status code from the response
-	RequestID  string // value of the X-Request-Id response header, if present
-	RetryAfter int    // seconds parsed from the Retry-After header; 0 if absent
-	Message    string // human-readable message extracted from the response body
+	StatusCode int        // HTTP status code from the response
+	RequestID  string     // value of the X-Request-Id response header, if present
+	RetryAfter int        // seconds parsed from the Retry-After header; 0 if absent
+	Message    string     // human-readable message extracted from the response body
+	RateLimit  *RateLimit // rate limit state from the RateLimit-* headers; nil if absent
+}
+
+// RateLimit is the rate limit state reported by the API in the
+// RateLimit-Limit, RateLimit-Remaining and RateLimit-Reset response headers.
+//
+// The API keeps separate windows (anonymous per IP, authenticated per account,
+// and a stricter one for starting services), so the values describe the
+// window of the request they came from. When a request is refused with 429,
+// prefer [APIError.RetryAfter]: a per-session cooldown can demand a longer
+// wait than the window reset.
+type RateLimit struct {
+	Limit     int // requests allowed per window
+	Remaining int // requests left in the current window
+	Reset     int // seconds until the current window resets
+}
+
+// parseRateLimit reads the RateLimit-* headers. ok is false when the response
+// carries none of them or any present one is not an integer.
+func parseRateLimit(h http.Header) (rl RateLimit, ok bool) {
+	fields := []struct {
+		name string
+		dst  *int
+	}{
+		{"RateLimit-Limit", &rl.Limit},
+		{"RateLimit-Remaining", &rl.Remaining},
+		{"RateLimit-Reset", &rl.Reset},
+	}
+	for _, f := range fields {
+		v := strings.TrimSpace(h.Get(f.name))
+		if v == "" {
+			continue
+		}
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return RateLimit{}, false
+		}
+		*f.dst = n
+		ok = true
+	}
+	return rl, ok
 }
 
 func (e *APIError) Error() string {
@@ -51,10 +92,18 @@ type NotFoundError struct{ *APIError }
 
 func (e *NotFoundError) Unwrap() error { return e.APIError }
 
-// ValidationError is returned for HTTP 422 Unprocessable Entity responses.
+// ValidationError is returned for HTTP 400 Bad Request and 422 Unprocessable
+// Entity responses: the request was rejected as invalid, and [APIError.Message]
+// says why (for example "tail must be 1..1000" or "Invalid node number").
 type ValidationError struct{ *APIError }
 
 func (e *ValidationError) Unwrap() error { return e.APIError }
+
+// ConflictError is returned for HTTP 409 Conflict responses, for example when
+// a session is restarted while it is still starting or restarting.
+type ConflictError struct{ *APIError }
+
+func (e *ConflictError) Unwrap() error { return e.APIError }
 
 // RateLimitError is returned for HTTP 429 Too Many Requests responses.
 // Check [APIError.RetryAfter] for the recommended wait duration in seconds.
@@ -80,6 +129,18 @@ func IsRateLimit(err error) bool {
 	return errors.As(err, &e)
 }
 
+// IsConflict reports whether err (or any error in its chain) is a [*ConflictError].
+func IsConflict(err error) bool {
+	var e *ConflictError
+	return errors.As(err, &e)
+}
+
+// IsValidation reports whether err (or any error in its chain) is a [*ValidationError].
+func IsValidation(err error) bool {
+	var e *ValidationError
+	return errors.As(err, &e)
+}
+
 // IsAuthError reports whether err (or any error in its chain) is an [*AuthenticationError].
 func IsAuthError(err error) bool {
 	var e *AuthenticationError
@@ -94,9 +155,12 @@ func errorFromResponse(resp *http.Response, body []byte) error {
 		Message:    extractMessage(body),
 	}
 	if ra := resp.Header.Get("Retry-After"); ra != "" {
-		if n, err := strconv.Atoi(ra); err == nil {
+		if n, err := strconv.Atoi(strings.TrimSpace(ra)); err == nil {
 			base.RetryAfter = n
 		}
+	}
+	if rl, ok := parseRateLimit(resp.Header); ok {
+		base.RateLimit = &rl
 	}
 	switch resp.StatusCode {
 	case 401:
@@ -105,8 +169,10 @@ func errorFromResponse(resp *http.Response, body []byte) error {
 		return &PermissionError{base}
 	case 404:
 		return &NotFoundError{base}
-	case 422:
+	case 400, 422:
 		return &ValidationError{base}
+	case 409:
+		return &ConflictError{base}
 	case 429:
 		return &RateLimitError{base}
 	default:
