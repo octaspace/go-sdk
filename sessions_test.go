@@ -232,3 +232,22 @@ func TestSessions_WaitReady_OtherError(t *testing.T) {
 		t.Errorf("err = %v, want AuthenticationError only", err)
 	}
 }
+
+func TestSession_SSHProxyOnlyFixture(t *testing.T) {
+	// A live session started from Cube with SSH: the proxy and the web
+	// terminal are set up, direct SSH is not (the account has no SSH key).
+	var s Session
+	decodeStrict(t, "testdata/next/session_compute_ssh_proxy.json", &s)
+	if !s.IsReady() || s.AppName == "" || s.ChargeAmount <= 0 {
+		t.Errorf("session = %+v", s)
+	}
+	if s.SSH.Direct != nil {
+		t.Errorf("ssh.direct = %+v, want nil", s.SSH.Direct)
+	}
+	if p := s.SSH.Proxy; p == nil || p.Host == "" || p.Port == 0 || p.User != "root" || s.SSH.Web == "" {
+		t.Errorf("ssh = %+v / %+v", s.SSH, s.SSH.Proxy)
+	}
+	if s.NodeHW == nil || s.NodeHW.Disk == 0 {
+		t.Errorf("node_hw = %+v", s.NodeHW)
+	}
+}

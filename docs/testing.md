@@ -34,3 +34,9 @@ nothing.
 OCTA_API_KEY=<key> OCTA_RUN_COMPUTE_INTEGRATION=1 OCTA_NODE=<node-number> \
   go test -run 'Integration$' -count=1 -v
 ```
+
+## CI on macOS
+
+The SDK has no platform-specific code, so CI tests pull requests on Linux
+only. The macOS job runs on pushes to `main` and on any pull request labelled
+`ci:macos`; adding the label starts it.

@@ -9,8 +9,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-Work towards the next-generation OctaSpace API (branch `next`). Resources still
-call the legacy endpoints; they move to the new API in follow-up changes.
+The SDK moves to the next-generation OctaSpace API (branch `next`): every
+resource now calls the new endpoints and the legacy API is removed. See the
+[migration guide](docs/migration-next.md).
 
 ### Changed
 
@@ -49,8 +50,8 @@ call the legacy endpoints; they move to the new API in follow-up changes.
 
 - `client.Compute` for the new compute API: `List`/`ListRaw`
   (`ComputeMachine`), `Start`, `StartBatch` (`ComputeBatchItem`, `BatchResult`)
-  and `Restart` (`ComputeRestartParams`; non-nil params replace the session's
-  parameters as a whole).
+  and `Restart` (`ComputeRestartParams`: params with any field set replace the
+  session's parameters as a whole; nil or all-zero params keep them).
 - `client.Render` for the new render API: `List`/`ListRaw` (`RenderMachine`),
   `Start`, `StartBatch` (`RenderBatchItem`).
 - `Sessions.WaitReady` polls a session until it is ready, reporting progress
@@ -72,6 +73,19 @@ call the legacy endpoints; they move to the new API in follow-up changes.
 - `RateLimit` (`RateLimit-Limit` / `-Remaining` / `-Reset`), exposed as
   `APIError.RateLimit` and `Client.RateLimit()` for the latest response.
 - `BaseURLDev` constant.
+
+### Removed
+
+- **Breaking:** the legacy resources without a counterpart in the next API:
+  `client.Nodes` (list, find, ident, logs, reboot, price updates by ID),
+  `client.Apps`, `client.IdleJobs`, `client.Services` (`MR`, `R`, `VPN`) and
+  `Accounts.Profile` / `ProfileRaw` / `GenerateWallet`, with their types.
+  Hosted nodes and their prices are in `client.Hosting`.
+- **Breaking:** the helper types `BigInt`, `FlexInt64` and `FlexString`, which
+  only the legacy models used.
+- The legacy Swagger/live contract inventory (`docs/contracts.md`) and the
+  machine-rental guide (`docs/machine-rentals.md`); see `docs/resources.md`
+  and `docs/migration-next.md`.
 
 ---
 

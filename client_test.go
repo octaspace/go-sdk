@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/http/httptrace"
+	"strings"
 	"testing"
 	"time"
 )
@@ -44,17 +45,13 @@ func statusHandler(code int, body string) http.HandlerFunc {
 func TestNewClient_ResourcesInitialized(t *testing.T) {
 	c := NewClient("key")
 	checks := map[string]bool{
-		"Accounts":     c.Accounts != nil,
-		"Nodes":        c.Nodes != nil,
-		"Sessions":     c.Sessions != nil,
-		"Apps":         c.Apps != nil,
-		"Network":      c.Network != nil,
-		"Services":     c.Services != nil,
-		"Services.MR":  c.Services.MR != nil,
-		"Services.VPN": c.Services.VPN != nil,
-		"Compute":      c.Compute != nil,
-		"Render":       c.Render != nil,
-		"IdleJobs":     c.IdleJobs != nil,
+		"Compute":  c.Compute != nil,
+		"Render":   c.Render != nil,
+		"Sessions": c.Sessions != nil,
+		"Hosting":  c.Hosting != nil,
+		"Accounts": c.Accounts != nil,
+		"Network":  c.Network != nil,
+		"Stats":    c.Stats != nil,
 	}
 	for name, ok := range checks {
 		if !ok {
@@ -155,7 +152,7 @@ func TestClient_ContextCancellation(t *testing.T) {
 
 func TestClient_APIError401(t *testing.T) {
 	c, _ := newTestClient(t, statusHandler(401, `{"error":"unauthorized"}`))
-	_, err := c.Accounts.Profile(context.Background())
+	_, err := c.Accounts.Balance(context.Background())
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -171,7 +168,7 @@ func TestClient_APIError401(t *testing.T) {
 
 func TestClient_APIError404(t *testing.T) {
 	c, _ := newTestClient(t, statusHandler(404, `{"error":"not found"}`))
-	_, err := c.Nodes.Find(context.Background(), 999)
+	_, err := c.Sessions.Get(context.Background(), "999")
 	if !IsNotFound(err) {
 		t.Errorf("expected NotFoundError, got %T: %v", err, err)
 	}
@@ -179,7 +176,7 @@ func TestClient_APIError404(t *testing.T) {
 
 func TestClient_APIError429(t *testing.T) {
 	c, _ := newTestClient(t, statusHandler(429, `{"error":"rate limit"}`))
-	_, err := c.Apps.List(context.Background())
+	_, err := c.Compute.List(context.Background())
 	if !IsRateLimit(err) {
 		t.Errorf("expected RateLimitError, got %T: %v", err, err)
 	}
@@ -187,7 +184,7 @@ func TestClient_APIError429(t *testing.T) {
 
 func TestClient_APIError500(t *testing.T) {
 	c, _ := newTestClient(t, statusHandler(500, `{"error":"internal server error"}`))
-	_, err := c.Apps.List(context.Background())
+	_, err := c.Compute.List(context.Background())
 	var srvErr *ServerError
 	if !errors.As(err, &srvErr) {
 		t.Errorf("expected *ServerError, got %T: %v", err, err)
@@ -200,7 +197,7 @@ func TestClient_RequestIDInError(t *testing.T) {
 		w.WriteHeader(500)
 		w.Write([]byte(`{}`))
 	})
-	_, err := c.Apps.List(context.Background())
+	_, err := c.Compute.List(context.Background())
 	var srvErr *ServerError
 	if !errors.As(err, &srvErr) {
 		t.Fatalf("expected *ServerError, got %T", err)
@@ -219,11 +216,11 @@ func TestClient_RetryOnTransientGET(t *testing.T) {
 			w.Write([]byte(`{"error":"unavailable"}`))
 			return
 		}
-		jsonHandler([]App{})(w, r)
+		jsonHandler([]ComputeMachine{})(w, r)
 	}))
 	t.Cleanup(srv.Close)
 	c := NewClient("key", WithBaseURL(srv.URL), WithMaxRetries(2))
-	_, err := c.Apps.List(context.Background())
+	_, err := c.Compute.List(context.Background())
 	if err != nil {
 		t.Errorf("unexpected error after retries: %v", err)
 	}
@@ -241,7 +238,7 @@ func TestClient_NoRetryOnPOST(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 	c := NewClient("key", WithBaseURL(srv.URL), WithMaxRetries(3))
-	c.Accounts.GenerateWallet(context.Background())
+	c.Compute.Start(context.Background(), &ComputeStartParams{NodeNumber: "n", Image: "alpine"})
 	if attempts != 1 {
 		t.Errorf("POST should not be retried; attempts = %d, want 1", attempts)
 	}
@@ -257,11 +254,11 @@ func TestClient_RetryAfterHeader(t *testing.T) {
 			w.Write([]byte(`{"error":"rate limit"}`))
 			return
 		}
-		jsonHandler([]App{})(w, r)
+		jsonHandler([]ComputeMachine{})(w, r)
 	}))
 	t.Cleanup(srv.Close)
 	c := NewClient("key", WithBaseURL(srv.URL), WithMaxRetries(1))
-	_, err := c.Apps.List(context.Background())
+	_, err := c.Compute.List(context.Background())
 	if err != nil {
 		t.Errorf("unexpected error after retry: %v", err)
 	}
@@ -322,7 +319,7 @@ func TestClient_RetryNonRetryableStatus(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 	c := NewClient("key", WithBaseURL(srv.URL), WithMaxRetries(3))
-	_, err := c.Nodes.Find(context.Background(), 1)
+	_, err := c.Sessions.Get(context.Background(), "1")
 	if !IsNotFound(err) {
 		t.Errorf("expected NotFoundError, got %T", err)
 	}
@@ -342,12 +339,12 @@ func TestClient_RetryAfterPositive(t *testing.T) {
 			w.Write([]byte(`{"error":"rate limit"}`))
 			return
 		}
-		jsonHandler([]App{})(w, r)
+		jsonHandler([]ComputeMachine{})(w, r)
 	}))
 	t.Cleanup(srv.Close)
 	c := NewClient("key", WithBaseURL(srv.URL), WithMaxRetries(1))
 	start := time.Now()
-	_, err := c.Apps.List(context.Background())
+	_, err := c.Compute.List(context.Background())
 	elapsed := time.Since(start)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
@@ -367,7 +364,7 @@ func TestClient_DecodeError(t *testing.T) {
 		w.WriteHeader(200)
 		w.Write([]byte("not json at all"))
 	})
-	_, err := c.Apps.List(context.Background())
+	_, err := c.Compute.List(context.Background())
 	if err == nil {
 		t.Fatal("expected decode error, got nil")
 	}
@@ -377,7 +374,7 @@ func TestNetworkError_ErrorString(t *testing.T) {
 	inner := &net.OpError{Op: "dial", Err: errors.New("refused")}
 	netErr := &NetworkError{Err: inner}
 	s := netErr.Error()
-	if !containsAt(s, "network error") {
+	if !strings.Contains(s, "network error") {
 		t.Errorf("NetworkError.Error() = %q, want to contain 'network error'", s)
 	}
 }
@@ -386,14 +383,12 @@ func TestClient_ContentTypeOnPOST(t *testing.T) {
 	var gotCT string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotCT = r.Header.Get("Content-Type")
-		jsonHandler(MachineRentalCreateResponse{UUID: "u"})(w, r)
+		jsonHandler(map[string]string{"uuid": "u"})(w, r)
 	}))
 	t.Cleanup(srv.Close)
 	c := NewClient("key", WithBaseURL(srv.URL), WithMaxRetries(0))
-	// Create sends a non-nil body, so Content-Type must be set.
-	c.Services.MR.Create(context.Background(), &MachineRentalCreateParams{
-		NodeID: 1, DiskSize: 10, Image: "alpine",
-	})
+	// Start sends a non-nil body, so Content-Type must be set.
+	c.Compute.Start(context.Background(), &ComputeStartParams{NodeNumber: "n", Image: "alpine"})
 	if gotCT != "application/json" {
 		t.Errorf("Content-Type = %q, want application/json", gotCT)
 	}
@@ -442,7 +437,7 @@ func closedURL(t *testing.T) string {
 
 func TestClient_Failover_SkipsUnreachableHost(t *testing.T) {
 	// First URL is closed (connection refused); second is live and returns data.
-	good := httptest.NewServer(jsonHandler([]App{{UUID: "app-1"}}))
+	good := httptest.NewServer(jsonHandler([]ComputeMachine{{NodeNumber: "app-1"}}))
 	t.Cleanup(good.Close)
 	dead := closedURL(t)
 
@@ -452,11 +447,11 @@ func TestClient_Failover_SkipsUnreachableHost(t *testing.T) {
 		WithTimeout(5*time.Second),
 	)
 
-	apps, err := c.Apps.List(context.Background())
+	apps, err := c.Compute.List(context.Background())
 	if err != nil {
 		t.Fatalf("expected failover success, got: %v", err)
 	}
-	if len(apps) != 1 || apps[0].UUID != "app-1" {
+	if len(apps) != 1 || apps[0].NodeNumber != "app-1" {
 		t.Errorf("unexpected apps: %v", apps)
 	}
 }
@@ -469,7 +464,7 @@ func TestClient_Failover_DoesNotFailoverOn500(t *testing.T) {
 		http.Error(w, `{"error":"boom"}`, http.StatusInternalServerError)
 	}))
 	t.Cleanup(bad.Close)
-	good := httptest.NewServer(jsonHandler([]App{{UUID: "should-not-reach"}}))
+	good := httptest.NewServer(jsonHandler([]ComputeMachine{{NodeNumber: "should-not-reach"}}))
 	t.Cleanup(good.Close)
 
 	c := NewClient("key",
@@ -477,7 +472,7 @@ func TestClient_Failover_DoesNotFailoverOn500(t *testing.T) {
 		WithMaxRetries(0),
 	)
 
-	_, err := c.Apps.List(context.Background())
+	_, err := c.Compute.List(context.Background())
 	if err == nil {
 		t.Fatal("expected error on 500, got nil")
 	}
@@ -500,18 +495,18 @@ func TestClient_Failover_AllHostsDown(t *testing.T) {
 		WithTimeout(5*time.Second),
 	)
 
-	_, err := c.Apps.List(context.Background())
+	_, err := c.Compute.List(context.Background())
 	if err == nil {
 		t.Fatal("expected error when all hosts are down, got nil")
 	}
 	// Error must mention unreachable hosts.
-	if !containsAt(err.Error(), "unreachable") {
+	if !strings.Contains(err.Error(), "unreachable") {
 		t.Errorf("error %q does not mention 'unreachable'", err.Error())
 	}
 }
 
 func TestWithBaseURLs_FiltersEmpty(t *testing.T) {
-	good := httptest.NewServer(jsonHandler([]App{{UUID: "ok"}}))
+	good := httptest.NewServer(jsonHandler([]ComputeMachine{{NodeNumber: "ok"}}))
 	t.Cleanup(good.Close)
 
 	// Mix of empty strings and the real URL.
@@ -522,7 +517,7 @@ func TestWithBaseURLs_FiltersEmpty(t *testing.T) {
 	// WithBaseURLs trims trailing slash but empty after trim are skipped.
 	// "   " trims to "   " (no slash trimming), but is not empty — however
 	// the test verifies the real URL still works when mixed with empties.
-	apps, err := c.Apps.List(context.Background())
+	apps, err := c.Compute.List(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

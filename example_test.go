@@ -58,7 +58,7 @@ func ExampleAPIError_errorsAs() {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte(`{"error":"invalid api key"}`))
+		w.Write([]byte(`{"message":"Invalid bearer token"}`))
 	}))
 	defer srv.Close()
 
@@ -67,7 +67,7 @@ func ExampleAPIError_errorsAs() {
 		octaspace.WithMaxRetries(0),
 	)
 
-	_, err := client.Accounts.Profile(context.Background())
+	_, err := client.Accounts.Balance(context.Background())
 	if err != nil {
 		var apiErr *octaspace.APIError
 		switch {
@@ -84,7 +84,7 @@ func ExampleAPIError_errorsAs() {
 		}
 	}
 	// Output:
-	// HTTP 401: invalid api key
+	// HTTP 401: Invalid bearer token
 }
 
 // ExampleClient_Network shows how to fetch live network statistics.
@@ -110,33 +110,6 @@ func ExampleClient_Network() {
 		info.Nodes.Online, info.Nodes.Rented, info.Nodes.Countries)
 	// Output:
 	// online 690, rented 250, in 41 countries
-}
-
-// ExampleVPNCreateParams shows how to start a WireGuard VPN session and a
-// v2ray session, which requires the Protocol field.
-func ExampleVPNCreateParams() {
-	client := octaspace.NewClient(os.Getenv("OCTA_API_KEY"))
-	ctx := context.Background()
-
-	// WireGuard — only NodeID and SubKind are needed.
-	_, _ = client.Services.VPN.Create(ctx, &octaspace.VPNCreateParams{
-		NodeID:  12345,
-		SubKind: "wg",
-	})
-
-	// v2ray — Protocol is required.
-	_, _ = client.Services.VPN.Create(ctx, &octaspace.VPNCreateParams{
-		NodeID:   12345,
-		SubKind:  "v2ray",
-		Protocol: "vmess",
-	})
-
-	// Forward arbitrary fields the API may accept via Extra.
-	_, _ = client.Services.VPN.Create(ctx, &octaspace.VPNCreateParams{
-		NodeID:  12345,
-		SubKind: "wg",
-		Extra:   map[string]any{"custom_field": "value"},
-	})
 }
 
 // ExampleSessionsResource_WaitReady starts a compute session, waits until it
@@ -175,40 +148,6 @@ func ExampleSessionsResource_WaitReady() {
 	}
 }
 
-// ExampleMachineRentalCreateParams shows how to start a machine rental session
-// with a GPU workload using a custom Docker image.
-func ExampleMachineRentalCreateParams() {
-	client := octaspace.NewClient(os.Getenv("OCTA_API_KEY"))
-
-	resp, err := client.Services.MR.Create(context.Background(), &octaspace.MachineRentalCreateParams{
-		NodeID:    98765,
-		DiskSize:  50,
-		Image:     "nvidia/cuda:12.0-base",
-		Ports:     []int{22},
-		HTTPPorts: []int{8888}, // Jupyter notebook
-		Envs: map[string]string{
-			"JUPYTER_TOKEN": "secret",
-		},
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("session UUID: %s\n", resp.UUID)
-}
-
-// ExampleMachineRentalResource_CreateSingle shows the documented object-form
-// machine-rental request. Unlike Create, it is not a batch-array request.
-func ExampleMachineRentalResource_CreateSingle() {
-	client := octaspace.NewClient(os.Getenv("OCTA_API_KEY"))
-	result, err := client.Services.MR.CreateSingle(context.Background(), &octaspace.MachineRentalCreateParams{
-		NodeID: 98765, DiskSize: 50, Image: "ubuntu:24.04",
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("session UUID: %s\n", result.UUID)
-}
-
 // ExampleNewStdLogger shows how to attach a standard library logger for
 // request/response diagnostics. Note: *log.Logger does not directly satisfy
 // the Logger interface; use NewStdLogger to wrap it.
@@ -221,20 +160,51 @@ func ExampleNewStdLogger() {
 	_ = client
 }
 
-// ExampleListNodesParams shows how to filter compute nodes by country and
-// compatible application.
-func ExampleListNodesParams() {
+// ExampleComputeResource_Start picks the cheapest machine for rent and starts
+// a session on it.
+func ExampleComputeResource_Start() {
 	client := octaspace.NewClient(os.Getenv("OCTA_API_KEY"))
 	ctx := context.Background()
 
-	country := "DE"
-	nodes, err := client.Nodes.List(ctx, &octaspace.ListNodesParams{
-		Country: &country,
-	})
-	if err != nil {
-		log.Fatal(err)
+	machines, err := client.Compute.List(ctx)
+	if err != nil || len(machines) == 0 {
+		return
 	}
-	for _, n := range nodes {
-		fmt.Printf("node %d  %s  %s\n", n.ID, n.Location.City, n.State)
+	cheapest := machines[0]
+	for _, m := range machines[1:] {
+		if m.BasePrice < cheapest.BasePrice {
+			cheapest = m
+		}
+	}
+	fmt.Printf("%s: %s/h, minimum rent %d min\n", cheapest.NodeNumber, cheapest.BasePrice, cheapest.MinRentMinutes)
+
+	uuid, err := client.Compute.Start(ctx, &octaspace.ComputeStartParams{
+		NodeNumber: cheapest.NodeNumber,
+		Image:      "ubuntu:24.04",
+		DiskSize:   20,
+		HTTPPorts:  []int{8888},
+		Envs:       map[string]string{"TOKEN": "secret"},
+		SSH:        octaspace.Bool(true),
+	})
+	if octaspace.IsValidation(err) {
+		log.Printf("rejected: %v", err) // e.g. insufficient balance, node not available
+		return
+	}
+	if err != nil {
+		return
+	}
+	fmt.Println("started", uuid)
+}
+
+// ExampleHostingResource_SetPrices changes the base price and the minimum
+// rent of a hosted node; the other prices stay as they are.
+func ExampleHostingResource_SetPrices() {
+	client := octaspace.NewClient(os.Getenv("OCTA_API_KEY"))
+	err := client.Hosting.SetPrices(context.Background(), "7KQ4-M2XD-4", octaspace.NodePrices{
+		Base:           octaspace.Price(250_000), // $0.25 per hour
+		MinRentMinutes: octaspace.Int(15),
+	})
+	if octaspace.IsValidation(err) {
+		log.Printf("price out of range: %v", err)
 	}
 }

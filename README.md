@@ -3,10 +3,23 @@
 [![CI](https://github.com/octaspace/go-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/octaspace/go-sdk/actions/workflows/ci.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/octaspace/go-sdk.svg)](https://pkg.go.dev/github.com/octaspace/go-sdk)
 
-Typed Go client for the [OctaSpace API](https://octa.space): compute rentals,
-VPN relays, render services, nodes, sessions, and account operations. It uses
-only the Go standard library and provides context cancellation, typed errors,
-retry for safe requests, and optional host failover.
+Typed Go client for the next-generation [OctaSpace API](https://octa.space):
+renting compute machines and render nodes, running sessions, hosted nodes and
+their prices, the account balance, and public network and GPU market
+statistics. It uses only the Go standard library and provides context
+cancellation, typed errors, rate-limit awareness, retry for safe requests, and
+optional host failover.
+
+> **Branch `next`.** This branch targets the new API, which runs on the test
+> stand `https://api-dev.octa.space` (the default base URL). The production
+> hosts still serve the legacy API, used by the releases on `main`. Until
+> `next` is released, install it from the branch:
+>
+> ```bash
+> go get github.com/octaspace/go-sdk@next
+> ```
+>
+> Moving from the legacy SDK: see the [migration guide](docs/migration-next.md).
 
 ## Requirements and installation
 
@@ -52,26 +65,22 @@ More detail: [testing and smoke checks](docs/testing.md).
 
 | Resource | Main operations | Guide |
 | --- | --- | --- |
-| Network | `Network.Info` | [Network](docs/resources.md#network) |
-| Accounts | profile, balance, wallet generation | [Accounts](docs/resources.md#accounts) |
-| Apps | list application templates | [Apps](docs/resources.md#apps) |
-| Nodes | list, find, price updates, reboot, downloads | [Nodes](docs/resources.md#nodes) |
-| Sessions | running sessions, info, logs, stop, wait until ready | [Sessions](docs/sessions.md#listing-sessions) |
-| Machine Rental | list and create compute sessions | [Machine rentals](docs/machine-rentals.md) |
-| VPN | list relays and create VPN sessions | [VPN](docs/resources.md#vpn) |
-| Render workers/jobs | `/services/r` and `/services/render` | [Render](docs/resources.md#render) |
-| Session operations | info, logs, stop | [Session operations](docs/sessions.md#session-operations) |
-| Idle jobs | inspect jobs and fetch logs | [Idle jobs](docs/resources.md#idle-jobs) |
+| Compute | list machines, start, batch start, restart | [Compute](docs/resources.md#compute) |
+| Render | list render nodes, start, batch start | [Render](docs/resources.md#render) |
+| Sessions | running sessions, info, logs, stop, wait until ready | [Sessions](docs/sessions.md) |
+| Hosting | the account's nodes, set prices | [Hosting](docs/resources.md#hosting) |
+| Accounts | balance | [Accounts](docs/resources.md#accounts) |
+| Network | public platform statistics | [Network](docs/resources.md#network) |
+| Stats | public GPU market: now, over time, by location | [Stats](docs/resources.md#stats) |
 
 ## Documentation
 
 - [Getting started and client configuration](docs/getting-started.md)
-- [Machine-rental request and response forms](docs/machine-rentals.md)
-- [Sessions and session details](docs/sessions.md)
+- [Migrating from the legacy SDK](docs/migration-next.md)
 - [Resource reference](docs/resources.md)
+- [Sessions](docs/sessions.md)
 - [Lossless raw JSON](docs/raw-json.md)
-- [Swagger/live contract inventory](docs/contracts.md)
-- [Errors, retries, and failover](docs/errors-and-reliability.md)
+- [Errors, rate limits, retries, and failover](docs/errors-and-reliability.md)
 - [Testing and live smoke checks](docs/testing.md)
 - [Change history](CHANGELOG.md)
 

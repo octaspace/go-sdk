@@ -5,6 +5,8 @@ on:
     branches: [main, next]
   pull_request:
     branches: [main, next]
+    # labeled: adding the ci:macos label re-runs the workflow with the macOS job.
+    types: [opened, synchronize, reopened, labeled]
 
 jobs:
   test:
@@ -44,12 +46,14 @@ jobs:
           retention-days: 7
 
   # The SDK has no platform-specific code, so macOS adds little over Linux,
-  # while macOS runners often queue for a long time. Run it only on pushes to
-  # main (i.e. before a release) instead of on every pull request.
+  # while macOS runners often queue for a long time. Run it on pushes to main
+  # (i.e. before a release) and on demand: label a pull request ci:macos.
   test-macos:
     name: Test (Go stable / macos-latest)
     runs-on: macos-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:macos'))
 
     steps:
       - uses: actions/checkout@v7

@@ -95,23 +95,23 @@ func TestCountResults(t *testing.T) {
 }
 
 func TestSmokePublicChecksDoNotRequireAuth(t *testing.T) {
+	// Endpoints the next API serves without a key (security: [] or optional).
 	publicChecks := map[string]bool{
-		"network.info":      true,
-		"apps.list":         true,
-		"services.mr.list":  true,
-		"services.vpn.list": true,
+		"network.info":        true,
+		"compute.list":        true,
+		"render.list":         true,
+		"stats.gpu.current":   true,
+		"stats.gpu.history":   true,
+		"stats.gpu.locations": true,
 	}
 
 	for _, chk := range checks {
-		if !publicChecks[chk.id] {
-			continue
-		}
-		if chk.requiresAuth {
-			t.Fatalf("%s is public but requiresAuth=true", chk.id)
+		if chk.requiresAuth == publicChecks[chk.id] {
+			t.Errorf("%s: requiresAuth = %v, want %v", chk.id, chk.requiresAuth, !publicChecks[chk.id])
 		}
 		delete(publicChecks, chk.id)
 	}
 	for id := range publicChecks {
-		t.Fatalf("public check %s not found", id)
+		t.Errorf("public check %s not found", id)
 	}
 }

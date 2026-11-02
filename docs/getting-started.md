@@ -7,11 +7,11 @@ Create one client and reuse it concurrently. Every SDK method accepts a
 ctx := context.Background()
 client := octaspace.NewClient(os.Getenv("OCTA_API_KEY"))
 
-account, err := client.Accounts.Profile(ctx)
+balance, err := client.Accounts.Balance(ctx)
 if err != nil {
 	return err
 }
-fmt.Println(account.Email)
+fmt.Println(balance.Balance) // e.g. $2.175268
 ```
 
 An empty key is valid for public endpoints such as `Network.Info`. The client
