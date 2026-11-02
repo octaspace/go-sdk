@@ -45,3 +45,10 @@ linters:
       # gosec: example_test.go serves compile-only demos, not production code.
       - path: "example_test\\.go$"
         linters: [gosec]
+
+      # gosec G704 (SSRF via taint analysis): this is an HTTP client SDK, so
+      # the request URL is the caller-configured API base URL (WithBaseURL /
+      # WithBaseURLs) plus a fixed path by design; there is no untrusted input.
+      - path: "client\\.go$"
+        linters: [gosec]
+        text: "G704"
