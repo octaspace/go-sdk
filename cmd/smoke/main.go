@@ -143,10 +143,10 @@ var checks = []check{
 		},
 	},
 	{
-		id: "services.render.list", label: "client.Services.Render.List",
-		method: "GET", path: "/services/render", requiresAuth: true,
+		id: "render.list", label: "client.Render.List",
+		method: "GET", path: "/services/render", requiresAuth: false,
 		fn: func(ctx context.Context, c *octaspace.Client) (any, error) {
-			return c.Services.Render.List(ctx, nil)
+			return c.Render.List(ctx)
 		},
 	},
 	{

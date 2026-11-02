@@ -20,6 +20,8 @@ call the legacy endpoints; they move to the new API in follow-up changes.
 - **Breaking:** the default base URL is `BaseURLDev`
   (`https://api-dev.octa.space`), the test stand of the new API, until its
   production host is announced. The legacy production hosts serve the old API.
+- **Breaking:** `client.Services.Render` (an untyped `map[string]any` wrapper of
+  `/services/render`) is replaced by the typed `client.Render`.
 - **Breaking:** HTTP 400 responses are returned as `*ValidationError` (was a
   bare `*APIError`); the new API reports validation errors with 400.
 - GET retries no longer wait out a `Retry-After` above the 60-second cap: the
@@ -28,6 +30,16 @@ call the legacy endpoints; they move to the new API in follow-up changes.
 
 ### Added
 
+- `client.Compute` for the new compute API: `List`/`ListRaw`
+  (`ComputeMachine`), `Start`, `StartBatch` (`ComputeBatchItem`, `BatchResult`)
+  and `Restart` (`ComputeRestartParams`; non-nil params replace the session's
+  parameters as a whole).
+- `client.Render` for the new render API: `List`/`ListRaw` (`RenderMachine`),
+  `Start`, `StartBatch` (`RenderBatchItem`).
+- `MicroUSD` money type (`Dollars()`, `String()`), `MachineGPU`, `Reliability`
+  and the `Bool` helper for optional `*bool` parameters.
+- `MachineGPU` tolerates optional integers sent as the string `"null"`, as
+  some nodes (e.g. Intel Arc) report them.
 - `ConflictError` (HTTP 409) and `IsConflict`; `IsValidation`.
 - `RateLimit` (`RateLimit-Limit` / `-Remaining` / `-Reset`), exposed as
   `APIError.RateLimit` and `Client.RateLimit()` for the latest response.
