@@ -17,8 +17,6 @@ jobs:
         # Go releases currently supported upstream.
         go: ["1.20", "oldstable", "stable"]
         os: [ubuntu-latest]
-        include:
-          - { go: "stable", os: macos-latest }
 
     steps:
       - uses: actions/checkout@v7
@@ -44,6 +42,25 @@ jobs:
           name: coverage
           path: coverage.out
           retention-days: 7
+
+  # The SDK has no platform-specific code, so macOS adds little over Linux,
+  # while macOS runners often queue for a long time. Run it only on pushes to
+  # main (i.e. before a release) instead of on every pull request.
+  test-macos:
+    name: Test (Go stable / macos-latest)
+    runs-on: macos-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+          cache: true
+
+      - name: Test (race)
+        run: go test -race -count=1 ./...
 
   lint:
     name: Lint
