@@ -1,32 +1,72 @@
 # Sessions
 
+`client.Sessions` covers the account's **running** sessions. Compute and render
+sessions share the `Session` type and are told apart by `Service`
+(`octaspace.ServiceCompute` / `ServiceRender`); the compute-only fields
+(`SSH`, `Ports`, `URLs`, `FM`, `Envs`, `RX`/`TX`, storage and traffic prices)
+stay zero for render. A session of another kind still decodes.
+
 ## Listing sessions
 
 ```go
-active, err := client.Sessions.List(ctx, nil)
-
-recent := true
-finished, err := client.Sessions.List(ctx, &octaspace.ListSessionsParams{Recent: &recent})
+sessions, err := client.Sessions.List(ctx) // running sessions, oldest first
 ```
 
-The active and recent endpoints overlap but do not expose identical fields.
-`FlexInt64` accepts numeric and quoted-string counters and timestamps.
+Stopped sessions are not listed, and there is no session history in the API.
 
 ## Session operations
 
 ```go
-session := client.Services.Session(uuid)
-info, err := session.Info(ctx)
-logs, err := session.Logs(ctx, nil)
-err = session.Stop(ctx, nil)
+session, err := client.Sessions.Get(ctx, uuid)                  // GET /services/{uuid}/info
+logs, err := client.Sessions.Logs(ctx, uuid, &octaspace.LogsParams{Tail: 100})
+_, err = client.Sessions.Stop(ctx, uuid)                         // 202: stopping
 ```
 
-Pass `&octaspace.LogsParams{Recent: &recent}` for logs from a finished
-session. `Stop` accepts an optional `StopParams` quality score.
+- `Get` of a stopped or unknown session is a `*NotFoundError`; a malformed UUID
+  is a `*ValidationError`.
+- `Logs` works for running compute sessions only. `Tail` is 1..1000 (0 uses the
+  API default, 200). `Container` is nil when the node cannot be reached, which
+  is different from an empty log; `ContainerTruncated` marks output cut to its
+  last 1 MiB. System events carry `TS` in Unix milliseconds (`Time()`).
+- `Stop` is asynchronous and idempotent. The session can still be reported for
+  a few seconds afterwards: treat `Get` returning `NotFoundError` as stopped.
+  A session stopped before its `MinRentMinutes` is charged base and storage
+  for that long.
 
-`SessionInfo` includes identity, lifecycle, connection, pricing, hardware,
-traffic, and port-mapping fields. It accepts both live `config` and Swagger
-`vpn_config`; marshaling uses `config`. `PortsMatrix` accepts numeric and
-string port values, and `UserEnvs` intentionally retains non-string values.
+## Waiting until a session is ready
 
-Use `session.InfoRaw(ctx)` when an exact server response is needed.
+A started or restarted session is `SessionStarting` while it is configured
+(`Progress`, and `PullPercent` while the image is pulled), then
+`SessionReady`.
+
+```go
+ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+defer cancel()
+session, err := client.Sessions.WaitReady(ctx, uuid, &octaspace.WaitOptions{
+	OnProgress: func(s *octaspace.Session) { fmt.Println(s.Status, s.Progress) },
+})
+if errors.Is(err, octaspace.ErrSessionStopped) {
+	// the session stopped while starting, e.g. its SSH setup failed
+}
+```
+
+`WaitReady` polls every 3 seconds by default (`WaitOptions.Interval`); bound
+the wait with the context.
+
+## Session fields
+
+Many fields are unknown while a session is starting: prices are zero and
+`NodeHW` is nil until it is configured.
+
+- Prices are `MicroUSD`, fixed at start; `ChargeAmount` is what was charged so
+  far.
+- `Duration` is in seconds, `StartedAt` in Unix milliseconds (`StartedTime()`).
+- `SSH.Direct` / `SSH.Proxy` are nil and `SSH.Web` is empty unless SSH was
+  requested; `SSHEndpoint.User` is the user to log in as.
+- `Ports` maps a container port to its public port on the node; `URLs` maps an
+  HTTP port to its public URL.
+- `NodeHW.Disk` is the rented disk in GB; `NetDownMbits`/`NetUpMbits` are
+  Mbit/s as documented by the API.
+
+Use `client.Sessions.GetRaw(ctx, uuid)` or `ListRaw(ctx)` when the exact server
+response is needed.

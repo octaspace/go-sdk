@@ -9,7 +9,7 @@
 //
 //	client.Accounts         – account profile, balance, wallet generation
 //	client.Nodes            – compute node listing and management
-//	client.Sessions         – active session listing
+//	client.Sessions         – running sessions: list, info, logs, stop, wait until ready
 //	client.Apps             – available application catalog
 //	client.Network          – network information
 //	client.Compute          – machines for rent, start/restart compute sessions
@@ -17,7 +17,6 @@
 //	client.Services.MR      – legacy machine rental (removed with the legacy API)
 //	client.Services.R       – legacy render workers (removed with the legacy API)
 //	client.Services.VPN     – VPN service
-//	client.Services.Session – per-session operations (info, logs, stop)
 //	client.IdleJobs         – idle job inspection
 //
 // All methods accept a [context.Context] as the first argument and return a

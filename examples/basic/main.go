@@ -128,7 +128,7 @@ func main() {
 
 	// ── Sessions ─────────────────────────────────────────────────────────────
 	fmt.Println("\n=== Active Sessions ===")
-	sessions, err := client.Sessions.List(ctx, nil)
+	sessions, err := client.Sessions.List(ctx)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "sessions.list error: %v\n", err)
 	} else {
@@ -138,8 +138,8 @@ func main() {
 				fmt.Println("  ...")
 				break
 			}
-			fmt.Printf("  - %s  service=%-6s  ready=%-5v  node=%d\n",
-				s.UUID, s.Service, s.IsReady, s.NodeID)
+			fmt.Printf("  - %s  service=%-7s  status=%-8s  node=%s\n",
+				s.UUID, s.Service, s.Status, s.NodeNumber)
 		}
 	}
 }

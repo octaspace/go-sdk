@@ -56,7 +56,7 @@ More detail: [testing and smoke checks](docs/testing.md).
 | Accounts | profile, balance, wallet generation | [Accounts](docs/resources.md#accounts) |
 | Apps | list application templates | [Apps](docs/resources.md#apps) |
 | Nodes | list, find, price updates, reboot, downloads | [Nodes](docs/resources.md#nodes) |
-| Sessions | active/recent list | [Sessions](docs/sessions.md#listing-sessions) |
+| Sessions | running sessions, info, logs, stop, wait until ready | [Sessions](docs/sessions.md#listing-sessions) |
 | Machine Rental | list and create compute sessions | [Machine rentals](docs/machine-rentals.md) |
 | VPN | list relays and create VPN sessions | [VPN](docs/resources.md#vpn) |
 | Render workers/jobs | `/services/r` and `/services/render` | [Render](docs/resources.md#render) |

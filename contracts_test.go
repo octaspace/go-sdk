@@ -50,50 +50,6 @@ func TestContractFixtures_DecodeTypedModels(t *testing.T) {
 	if nodes[0].System.Memory.Used != 1000 || nodes[0].System.Memory.UsedPercent != 50 || nodes[0].System.GPUs[0].Model != "Example GPU" {
 		t.Errorf("node contract fields lost: %+v", nodes[0])
 	}
-
-	var sessions []Session
-	if err := json.Unmarshal(contractFixture(t, "sessions-recent-live.json"), &sessions); err != nil {
-		t.Fatalf("recent sessions: %v", err)
-	}
-	if sessions[0].StartedAt.Int64() == 0 || sessions[0].FinishedAt.Int64() == 0 || sessions[0].ChargeAmount.Int == nil {
-		t.Errorf("recent-session contract fields lost: %+v", sessions[0])
-	}
-
-	var info SessionInfo
-	if err := json.Unmarshal(contractFixture(t, "session-info-full.json"), &info); err != nil {
-		t.Fatalf("session info: %v", err)
-	}
-	if info.AccountID != 404 || info.VPNConfig != "sanitized-vpn-config" || info.PortsMatrix["22"].Int64() != 10022 || info.UserEnvs["BOOLEAN"] != false {
-		t.Errorf("session-info contract fields lost: %+v", info)
-	}
-
-	// Compute (MR) sessions return container_id as a JSON array (one entry per
-	// container), unlike VPN sessions where the field is absent entirely. This
-	// previously broke decoding of the whole /sessions list and /services/:uuid/info
-	// for any account with an active compute rental — see FlexString.
-	var activeSessions []Session
-	if err := json.Unmarshal(contractFixture(t, "sessions-active-mr-live.json"), &activeSessions); err != nil {
-		t.Fatalf("active mr sessions: %v", err)
-	}
-	if activeSessions[0].ContainerID.String() == "" || activeSessions[0].ChargeAmount.Int == nil {
-		t.Errorf("active-mr-session contract fields lost: %+v", activeSessions[0])
-	}
-
-	var mrInfo SessionInfo
-	if err := json.Unmarshal(contractFixture(t, "session-info-mr-live.json"), &mrInfo); err != nil {
-		t.Fatalf("mr session info: %v", err)
-	}
-	if mrInfo.ContainerID.String() == "" || mrInfo.TX == 0 {
-		t.Errorf("mr-session-info contract fields lost: %+v", mrInfo)
-	}
-
-	var logs SessionLogs
-	if err := json.Unmarshal(contractFixture(t, "session-logs-live.json"), &logs); err != nil {
-		t.Fatalf("session logs: %v", err)
-	}
-	if len(logs.System) != 1 || logs.System[0].TS == 0 || logs.Container == "" {
-		t.Errorf("logs contract fields lost: %+v", logs)
-	}
 }
 
 func TestContractFixtures_AreSanitized(t *testing.T) {

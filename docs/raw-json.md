@@ -13,7 +13,7 @@ nodes, err := client.Nodes.ListRaw(ctx, params)
 sessions, err := client.Sessions.ListRaw(ctx, params)
 machines, err := client.Services.MR.ListRaw(ctx, params)
 relays, err := client.Services.VPN.ListRaw(ctx, params)
-info, err := client.Services.Session(uuid).InfoRaw(ctx)
+info, err := client.Sessions.GetRaw(ctx, uuid)
 account, err := client.Accounts.ProfileRaw(ctx)
 ```
 

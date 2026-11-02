@@ -18,29 +18,19 @@ OCTA_API_KEY=<key> go run ./cmd/smoke -json
 go run ./cmd/smoke -only network.info
 ```
 
-No integration test creates a machine-rental session by default. The
-object-form `CreateSingle` integration check is opt-in and selects the cheapest
-eligible machine under an explicit USD/hour cap. It stops the created session
-with an independent two-minute cleanup context and waits until it leaves active
-sessions.
+No integration test creates a session by default. The live compute checks run
+only with `OCTA_RUN_COMPUTE_INTEGRATION=1` and an API key, against
+`OCTA_API_URL` (default: the `BaseURLDev` stand).
+
+`TestComputeSessionIntegration` starts a **billed** session and takes it
+through its life: start, `WaitReady`, `List`, `Logs`, `Restart`, the restart
+cooldown, and `Stop`. It uses `OCTA_NODE` if set, otherwise the cheapest machine
+without a minimum rent under $0.05/h, and always stops the session with an
+independent cleanup context, waiting until the API no longer reports it.
+`TestComputeRejectionIntegration` sends invalid start requests and starts
+nothing.
 
 ```bash
-OCTA_API_KEY=<key> OCTA_RUN_CREATE_SINGLE_INTEGRATION=1 \
-  go test -run '^TestMachineRentalCreateSingleIntegration$' -count=1
-```
-
-For diagnosing an object-form failure, a separately gated array-form control
-uses the same candidate-selection and cleanup rules:
-
-```bash
-OCTA_API_KEY=<key> OCTA_RUN_CREATE_ARRAY_CONTROL_INTEGRATION=1 \
-  go test -run '^TestMachineRentalCreateArrayControlIntegration$' -count=1
-```
-
-Safe object/array rejection contracts use a nonexistent node and do not create
-a billed session:
-
-```bash
-OCTA_API_KEY=<key> OCTA_RUN_CREATE_REJECTION_INTEGRATION=1 \
-  go test -run '^TestMachineRentalCreateRejectionIntegration$' -count=1
+OCTA_API_KEY=<key> OCTA_RUN_COMPUTE_INTEGRATION=1 OCTA_NODE=<node-number> \
+  go test -run 'Integration$' -count=1 -v
 ```
