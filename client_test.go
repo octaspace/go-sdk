@@ -44,16 +44,17 @@ func statusHandler(code int, body string) http.HandlerFunc {
 func TestNewClient_ResourcesInitialized(t *testing.T) {
 	c := NewClient("key")
 	checks := map[string]bool{
-		"Accounts":        c.Accounts != nil,
-		"Nodes":           c.Nodes != nil,
-		"Sessions":        c.Sessions != nil,
-		"Apps":            c.Apps != nil,
-		"Network":         c.Network != nil,
-		"Services":        c.Services != nil,
-		"Services.MR":     c.Services.MR != nil,
-		"Services.VPN":    c.Services.VPN != nil,
-		"Services.Render": c.Services.Render != nil,
-		"IdleJobs":        c.IdleJobs != nil,
+		"Accounts":     c.Accounts != nil,
+		"Nodes":        c.Nodes != nil,
+		"Sessions":     c.Sessions != nil,
+		"Apps":         c.Apps != nil,
+		"Network":      c.Network != nil,
+		"Services":     c.Services != nil,
+		"Services.MR":  c.Services.MR != nil,
+		"Services.VPN": c.Services.VPN != nil,
+		"Compute":      c.Compute != nil,
+		"Render":       c.Render != nil,
+		"IdleJobs":     c.IdleJobs != nil,
 	}
 	for name, ok := range checks {
 		if !ok {

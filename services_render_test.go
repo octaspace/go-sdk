@@ -2,56 +2,85 @@ package octaspace
 
 import (
 	"context"
+	"errors"
+	"net/http"
+	"os"
 	"testing"
 )
 
+func TestRenderMachine_FixtureCoversEveryField(t *testing.T) {
+	var machines []RenderMachine
+	decodeStrict(t, "testdata/next/services_render.json", &machines)
+	if len(machines) != 2 {
+		t.Fatalf("len = %d, want 2", len(machines))
+	}
+	for _, m := range machines {
+		if m.NodeNumber == "" || m.BasePrice <= 0 || m.BlenderScore <= 0 || len(m.GPUs) == 0 {
+			t.Errorf("machine = %+v", m)
+		}
+	}
+}
+
 func TestRender_List(t *testing.T) {
-	want := []map[string]any{
-		{"uuid": "render-1", "status": "queued"},
-		{"uuid": "render-2", "status": "running"},
-	}
-	c, _ := newTestClient(t, jsonHandler(want))
-	got, err := c.Services.Render.List(context.Background(), nil)
+	fixture, err := os.ReadFile("testdata/next/services_render.json")
 	if err != nil {
-		t.Fatalf("List: %v", err)
+		t.Fatal(err)
 	}
-	if len(got) != 2 {
-		t.Fatalf("len = %d, want 2", len(got))
-	}
-	if got[0]["uuid"] != "render-1" {
-		t.Errorf("got[0].uuid = %v, want render-1", got[0]["uuid"])
-	}
-}
-
-func TestRender_List_Error(t *testing.T) {
-	c, _ := newTestClient(t, statusHandler(401, `{"error":"unauthorized"}`))
-	_, err := c.Services.Render.List(context.Background(), nil)
-	if !IsAuthError(err) {
-		t.Errorf("expected AuthenticationError, got %T: %v", err, err)
-	}
-}
-
-func TestRender_Create(t *testing.T) {
-	want := map[string]any{"uuid": "created-render-uuid", "status": "queued"}
-	c, _ := newTestClient(t, jsonHandler(want))
-	got, err := c.Services.Render.Create(context.Background(), map[string]any{
-		"node_id": 42,
-		"image":   "blender:latest",
+	c, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/services/render" {
+			t.Errorf("%s %s", r.Method, r.URL.Path)
+		}
+		_, _ = w.Write(fixture)
 	})
-	if err != nil {
-		t.Fatalf("Create: %v", err)
+	got, err := c.Render.List(context.Background())
+	if err != nil || len(got) != 2 {
+		t.Fatalf("List = %d, %v", len(got), err)
 	}
-	if got["uuid"] != "created-render-uuid" {
-		t.Errorf("uuid = %v, want created-render-uuid", got["uuid"])
+	if _, err := c.Render.ListRaw(context.Background()); err != nil {
+		t.Errorf("ListRaw: %v", err)
 	}
 }
 
-func TestRender_Create_Error(t *testing.T) {
-	c, _ := newTestClient(t, statusHandler(422, `{"error":"validation failed"}`))
-	_, err := c.Services.Render.Create(context.Background(), map[string]any{})
-	var valErr *ValidationError
-	if err == nil {
-		t.Fatal("expected error, got nil")
+func TestRender_Start(t *testing.T) {
+	var method, path string
+	var body []byte
+	c, _ := newTestClient(t, captureBody(t, &method, &path, &body, 201, `{"uuid":"r-1"}`))
+	uuid, err := c.Render.Start(context.Background(), "M95S-WZG8-7")
+	if err != nil || uuid != "r-1" {
+		t.Fatalf("Start = %q, %v", uuid, err)
 	}
-	_ = valErr
+	if method != http.MethodPost || path != "/services/render" || string(body) != `{"node_number":"M95S-WZG8-7"}` {
+		t.Errorf("request = %s %s %s", method, path, body)
+	}
+	if _, err := c.Render.Start(context.Background(), ""); err == nil {
+		t.Error("empty node number should be rejected before the request")
+	}
+}
+
+func TestRender_Start_Unavailable(t *testing.T) {
+	c, _ := newTestClient(t, statusHandler(503, `{"message":"Service is temporarily unavailable"}`))
+	_, err := c.Render.Start(context.Background(), "M95S-WZG8-7")
+	var se *ServerError
+	if !errors.As(err, &se) || se.StatusCode != 503 {
+		t.Errorf("err = %v, want ServerError 503", err)
+	}
+}
+
+func TestRender_StartBatch(t *testing.T) {
+	var method, path string
+	var body []byte
+	c, _ := newTestClient(t, captureBody(t, &method, &path, &body, 200,
+		`[{"id":"a","status":0,"uuid":"r-1"},{"id":"b","status":1,"reason":"Node not available"}]`))
+	got, err := c.Render.StartBatch(context.Background(), []RenderBatchItem{
+		{ID: "a", NodeNumber: "M95S-WZG8-7"}, {ID: "b", NodeNumber: "7R2S-S05E-S"},
+	})
+	if err != nil || len(got) != 2 || !got[0].OK() || got[1].OK() {
+		t.Fatalf("StartBatch = %+v, %v", got, err)
+	}
+	if string(body) != `[{"id":"a","node_number":"M95S-WZG8-7"},{"id":"b","node_number":"7R2S-S05E-S"}]` {
+		t.Errorf("body = %s", body)
+	}
+	if _, err := c.Render.StartBatch(context.Background(), nil); err == nil {
+		t.Error("empty batch should be rejected before the request")
+	}
 }

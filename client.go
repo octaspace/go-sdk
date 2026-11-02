@@ -12,10 +12,11 @@
 //	client.Sessions         – active session listing
 //	client.Apps             – available application catalog
 //	client.Network          – network information
-//	client.Services.MR      – machine rental (compute)
-//	client.Services.R       – render workers
+//	client.Compute          – machines for rent, start/restart compute sessions
+//	client.Render           – render nodes, start render sessions
+//	client.Services.MR      – legacy machine rental (removed with the legacy API)
+//	client.Services.R       – legacy render workers (removed with the legacy API)
 //	client.Services.VPN     – VPN service
-//	client.Services.Render  – render service
 //	client.Services.Session – per-session operations (info, logs, stop)
 //	client.IdleJobs         – idle job inspection
 //
@@ -209,6 +210,8 @@ type Client struct {
 	Sessions *SessionsResource
 	Apps     *AppsResource
 	Network  *NetworkResource
+	Compute  *ComputeResource
+	Render   *RenderResource
 	Services *ServicesResource
 	IdleJobs *IdleJobsResource
 }
@@ -246,12 +249,13 @@ func NewClient(apiKey string, opts ...Option) *Client {
 	c.Apps = &AppsResource{c}
 	c.Network = &NetworkResource{c}
 	c.Services = &ServicesResource{
-		c:      c,
-		MR:     &MachineRentalResource{c},
-		R:      &RenderWorkerResource{c},
-		VPN:    &VPNResource{c},
-		Render: &RenderResource{c},
+		c:   c,
+		MR:  &MachineRentalResource{c},
+		R:   &RenderWorkerResource{c},
+		VPN: &VPNResource{c},
 	}
+	c.Compute = &ComputeResource{c}
+	c.Render = &RenderResource{c}
 	c.IdleJobs = &IdleJobsResource{c}
 	return c
 }

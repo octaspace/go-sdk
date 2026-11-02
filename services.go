@@ -21,11 +21,10 @@ const (
 //	// Inspect a running session
 //	info, err := client.Services.Session("uuid").Info(ctx)
 type ServicesResource struct {
-	c      *Client
-	MR     *MachineRentalResource
-	R      *RenderWorkerResource
-	VPN    *VPNResource
-	Render *RenderResource
+	c   *Client
+	MR  *MachineRentalResource
+	R   *RenderWorkerResource
+	VPN *VPNResource
 }
 
 // Session returns a [*SessionProxy] for operations on a specific service session.
