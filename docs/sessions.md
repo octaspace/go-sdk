@@ -65,8 +65,9 @@ Many fields are unknown while a session is starting: prices are zero and
   requested; `SSHEndpoint.User` is the user to log in as.
 - `Ports` maps a container port to its public port on the node; `URLs` maps an
   HTTP port to its public URL.
-- `NodeHW.Disk` is the rented disk in GB; `NetDownMbits`/`NetUpMbits` are
-  Mbit/s as documented by the API.
+- `NodeHW.Disk` is the rented disk in GB; `NetDownMbps`/`NetUpMbps` are the
+  node's network speed in whole Mbit/s (0 for sessions started before the API
+  reported it).
 
 Use `client.Sessions.GetRaw(ctx, uuid)` or `ListRaw(ctx)` when the exact server
 response is needed.

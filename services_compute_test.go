@@ -45,8 +45,8 @@ func TestComputeMachine_FixtureCoversEveryField(t *testing.T) {
 	if m.BasePrice != 100 || m.StoragePrice != 100 || m.TrafficPrice != 100 || m.MinRentMinutes != 0 {
 		t.Errorf("prices = %v/%v/%v min %d", m.BasePrice, m.StoragePrice, m.TrafficPrice, m.MinRentMinutes)
 	}
-	if m.NetDownMbits < 100 || m.NetDownMbits > 1000 {
-		t.Errorf("NetDownMbits = %v, want Mbit/s", m.NetDownMbits)
+	if m.NetDownMbps != 240 || m.NetUpMbps != 466 {
+		t.Errorf("net = %d/%d Mbit/s, want 240/466", m.NetDownMbps, m.NetUpMbps)
 	}
 	if m.DiskType != "nvme" || m.Arch != "x86_64" || len(m.GPUs) == 0 {
 		t.Errorf("hardware = %q %q %d GPUs", m.DiskType, m.Arch, len(m.GPUs))
