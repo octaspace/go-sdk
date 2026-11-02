@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, next]
   pull_request:
-    branches: [main]
+    branches: [main, next]
 
 jobs:
   test:
@@ -13,18 +13,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go: ["1.20", "1.21", "1.22", "1.23"]
+        # 1.20 is the minimum declared in go.mod; oldstable/stable are the two
+        # Go releases currently supported upstream.
+        go: ["1.20", "oldstable", "stable"]
         os: [ubuntu-latest]
-        # macOS 15 (Sequoia) runners reject -race test binaries built by the
-        # go1.21/1.22 toolchains ("missing LC_UUID load command"; fixed in 1.23),
-        # so cover macOS only on the newest Go rather than the full matrix.
         include:
-          - { go: "1.23", os: macos-latest }
+          - { go: "stable", os: macos-latest }
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version: ${{ matrix.go }}
           cache: true
@@ -39,8 +38,8 @@ jobs:
         run: go test -race -count=1 -coverprofile=coverage.out ./...
 
       - name: Upload coverage
-        if: matrix.go == '1.23' && matrix.os == 'ubuntu-latest'
-        uses: actions/upload-artifact@v4
+        if: matrix.go == 'stable' && matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v7
         with:
           name: coverage
           path: coverage.out
@@ -51,17 +50,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
-          go-version: "1.23"
+          go-version: stable
           cache: true
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v7
+        uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.1.6
+          version: v2.15.0
+
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
   smoke:
     name: Smoke test (live API)
@@ -70,11 +72,11 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
-          go-version: "1.23"
+          go-version: stable
           cache: true
 
       - name: Run smoke tests
