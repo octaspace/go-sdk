@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"time"
 
 	octaspace "github.com/octaspace/go-sdk"
 )
@@ -137,21 +138,40 @@ func ExampleVPNCreateParams() {
 	})
 }
 
-// ExampleLogsParams shows how to fetch logs for a finished (recent) session.
-// Active sessions do not need LogsParams; pass nil instead.
-func ExampleLogsParams() {
+// ExampleSessionsResource_WaitReady starts a compute session, waits until it
+// is configured, reads its logs and stops it.
+func ExampleSessionsResource_WaitReady() {
 	client := octaspace.NewClient(os.Getenv("OCTA_API_KEY"))
 	ctx := context.Background()
-	uuid := "550e8400-e29b-41d4-a716-446655440000"
 
-	proxy := client.Services.Session(uuid)
+	uuid, err := client.Compute.Start(ctx, &octaspace.ComputeStartParams{
+		NodeNumber: "7KQ4-M2XD-4",
+		Image:      "ubuntu:24.04",
+		Entrypoint: "sh -c",
+		Args:       `"echo hello; sleep infinity"`,
+	})
+	if err != nil {
+		return
+	}
+	defer client.Sessions.Stop(context.Background(), uuid)
 
-	// Active session — no params needed.
-	_, _ = proxy.Logs(ctx, nil)
+	waitCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	defer cancel()
+	session, err := client.Sessions.WaitReady(waitCtx, uuid, &octaspace.WaitOptions{
+		OnProgress: func(s *octaspace.Session) { log.Printf("%s %s", s.Status, s.Progress) },
+	})
+	if errors.Is(err, octaspace.ErrSessionStopped) {
+		return // configuration failed and the session was stopped
+	}
+	if err != nil {
+		return
+	}
+	_ = session.NodeHW
 
-	// Finished (recent) session — recent=true is required by the API.
-	recent := true
-	_, _ = proxy.Logs(ctx, &octaspace.LogsParams{Recent: &recent})
+	logs, err := client.Sessions.Logs(ctx, uuid, &octaspace.LogsParams{Tail: 50})
+	if err == nil && logs.Container != nil {
+		log.Print(*logs.Container)
+	}
 }
 
 // ExampleMachineRentalCreateParams shows how to start a machine rental session

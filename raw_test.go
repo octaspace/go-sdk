@@ -21,9 +21,6 @@ func TestRawMethods_ReturnExactBodyAndEncodeQuery(t *testing.T) {
 		case "/apps":
 			_, _ = w.Write([]byte(appsPayload))
 		case "/sessions":
-			if got := r.URL.Query().Get("recent"); got != "true" {
-				t.Errorf("recent = %q, want true", got)
-			}
 			_, _ = w.Write([]byte(sessionsPayload))
 		default:
 			http.NotFound(w, r)
@@ -39,8 +36,7 @@ func TestRawMethods_ReturnExactBodyAndEncodeQuery(t *testing.T) {
 	if string(apps) != appsPayload {
 		t.Errorf("Apps.ListRaw = %s, want exact server body", apps)
 	}
-	recent := true
-	sessions, err := c.Sessions.ListRaw(context.Background(), &ListSessionsParams{Recent: &recent})
+	sessions, err := c.Sessions.ListRaw(context.Background())
 	if err != nil {
 		t.Fatalf("Sessions.ListRaw: %v", err)
 	}
@@ -94,7 +90,7 @@ func TestRawMethods_TimeoutAndCancellation(t *testing.T) {
 	}
 }
 
-func TestSessionInfoRaw_EscapesUUID(t *testing.T) {
+func TestSessionGetRaw_EscapesUUID(t *testing.T) {
 	var escapedPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.RawPath != "" {
@@ -106,9 +102,9 @@ func TestSessionInfoRaw_EscapesUUID(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 	c := NewClient("key", WithBaseURL(srv.URL), WithMaxRetries(0))
-	body, err := c.Services.Session("uuid/with space").InfoRaw(context.Background())
+	body, err := c.Sessions.GetRaw(context.Background(), "uuid/with space")
 	if err != nil {
-		t.Fatalf("InfoRaw: %v", err)
+		t.Fatalf("GetRaw: %v", err)
 	}
 	if string(body) != `{"unknown":true}` {
 		t.Errorf("body = %s", body)

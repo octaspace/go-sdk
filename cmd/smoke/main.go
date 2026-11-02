@@ -153,87 +153,53 @@ var checks = []check{
 		id: "sessions.list", label: "client.Sessions.List",
 		method: "GET", path: "/sessions", requiresAuth: true,
 		fn: func(ctx context.Context, c *octaspace.Client) (any, error) {
-			return c.Sessions.List(ctx, nil)
+			return c.Sessions.List(ctx)
 		},
 	},
 	{
-		id: "sessions.list.recent", label: "client.Sessions.List(recent=true)",
-		method: "GET", path: "/sessions?recent=true", requiresAuth: true,
-		fn: func(ctx context.Context, c *octaspace.Client) (any, error) {
-			yes := true
-			return c.Sessions.List(ctx, &octaspace.ListSessionsParams{Recent: &yes})
-		},
-	},
-	{
-		id: "services.session.info", label: "client.Services.Session.Info",
+		id: "sessions.get", label: "client.Sessions.Get",
 		method: "GET", path: "/services/:uuid/info", requiresAuth: true,
 		fn: func(ctx context.Context, c *octaspace.Client) (any, error) {
-			uuid, err := firstActiveSessionUUID(ctx, c)
+			uuid, err := firstActiveSessionUUID(ctx, c, false)
 			if err != nil {
 				return nil, err
 			}
 			if uuid == "" {
 				return nil, skippedError("no active sessions")
 			}
-			return c.Services.Session(uuid).Info(ctx)
+			return c.Sessions.Get(ctx, uuid)
 		},
 	},
 	{
-		id: "services.session.logs.active", label: "client.Services.Session.Logs(active)",
+		id: "sessions.logs", label: "client.Sessions.Logs",
 		method: "GET", path: "/services/:uuid/logs", requiresAuth: true,
 		fn: func(ctx context.Context, c *octaspace.Client) (any, error) {
-			uuid, err := firstActiveSessionUUID(ctx, c)
+			uuid, err := firstActiveSessionUUID(ctx, c, true)
 			if err != nil {
 				return nil, err
 			}
 			if uuid == "" {
-				return nil, skippedError("no active sessions")
+				return nil, skippedError("no active compute sessions")
 			}
-			return c.Services.Session(uuid).Logs(ctx, nil)
-		},
-	},
-	{
-		id: "services.session.logs.recent", label: "client.Services.Session.Logs(recent=true)",
-		method: "GET", path: "/services/:uuid/logs?recent=true", requiresAuth: true,
-		fn: func(ctx context.Context, c *octaspace.Client) (any, error) {
-			uuid, err := firstRecentSessionUUID(ctx, c)
-			if err != nil {
-				return nil, err
-			}
-			if uuid == "" {
-				return nil, skippedError("no recent sessions")
-			}
-			yes := true
-			return c.Services.Session(uuid).Logs(ctx, &octaspace.LogsParams{Recent: &yes})
+			return c.Sessions.Logs(ctx, uuid, &octaspace.LogsParams{Tail: 20})
 		},
 	},
 }
 
-// firstActiveSessionUUID returns the UUID of the first active session, or ""
-// if there are no active sessions.
-func firstActiveSessionUUID(ctx context.Context, c *octaspace.Client) (string, error) {
-	sessions, err := c.Sessions.List(ctx, nil)
+// firstActiveSessionUUID returns the UUID of the first running session (the
+// first compute one when computeOnly is set, as only those have logs), or ""
+// if there is none.
+func firstActiveSessionUUID(ctx context.Context, c *octaspace.Client, computeOnly bool) (string, error) {
+	sessions, err := c.Sessions.List(ctx)
 	if err != nil {
 		return "", err
 	}
-	if len(sessions) == 0 {
-		return "", nil
+	for _, s := range sessions {
+		if !computeOnly || s.IsCompute() {
+			return s.UUID, nil
+		}
 	}
-	return sessions[0].UUID, nil
-}
-
-// firstRecentSessionUUID returns the UUID of the first recently finished session,
-// or "" if there are no recent sessions.
-func firstRecentSessionUUID(ctx context.Context, c *octaspace.Client) (string, error) {
-	yes := true
-	sessions, err := c.Sessions.List(ctx, &octaspace.ListSessionsParams{Recent: &yes})
-	if err != nil {
-		return "", err
-	}
-	if len(sessions) == 0 {
-		return "", nil
-	}
-	return sessions[0].UUID, nil
+	return "", nil
 }
 
 func main() {

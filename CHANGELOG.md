@@ -22,6 +22,18 @@ call the legacy endpoints; they move to the new API in follow-up changes.
   production host is announced. The legacy production hosts serve the old API.
 - **Breaking:** `client.Services.Render` (an untyped `map[string]any` wrapper of
   `/services/render`) is replaced by the typed `client.Render`.
+- **Breaking:** sessions move to the new API. `client.Sessions` gains `Get`,
+  `GetRaw`, `Logs` and `Stop` taking the session UUID, and
+  `client.Services.Session(uuid)` (`SessionProxy`) is removed. `Session` is the
+  new model shared by compute and render sessions (`Service`, `Status`,
+  `Progress`, `PullPercent`, `NodeNumber`, `MicroUSD` prices, `SSH`,
+  `NodeHW`); `SessionInfo`, `SessionPrices`, `SessionNodeLocation`,
+  `ListSessionsParams` and `StopParams` are removed. `List` no longer takes
+  params and `LogsParams.Recent` is replaced by `Tail`: the API keeps no session
+  history. `SessionLogs.Container` is a `*string` (nil when the node cannot be
+  reached). `Stop` returns the session UUID.
+- **Breaking:** the legacy service constants `ServiceMR` and `ServiceVPN` are
+  replaced by `ServiceCompute` and `ServiceRender`.
 - **Breaking:** HTTP 400 responses are returned as `*ValidationError` (was a
   bare `*APIError`); the new API reports validation errors with 400.
 - GET retries no longer wait out a `Retry-After` above the 60-second cap: the
@@ -36,6 +48,11 @@ call the legacy endpoints; they move to the new API in follow-up changes.
   parameters as a whole).
 - `client.Render` for the new render API: `List`/`ListRaw` (`RenderMachine`),
   `Start`, `StartBatch` (`RenderBatchItem`).
+- `Sessions.WaitReady` polls a session until it is ready, reporting progress
+  through `WaitOptions.OnProgress`; it returns `ErrSessionStopped` if the
+  session stops meanwhile.
+- Opt-in live compute integration tests (`OCTA_RUN_COMPUTE_INTEGRATION`)
+  replace the legacy machine-rental ones.
 - `MicroUSD` money type (`Dollars()`, `String()`), `MachineGPU`, `Reliability`
   and the `Bool` helper for optional `*bool` parameters.
 - `MachineGPU` tolerates optional integers sent as the string `"null"`, as
