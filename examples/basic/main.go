@@ -53,7 +53,7 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "accounts.balance error: %v\n", err)
 	} else {
-		fmt.Printf("  Balance (wei): %s\n", balance.String())
+		fmt.Printf("  Balance: %s %s\n", balance.Balance, balance.Currency)
 	}
 
 	// ── Apps ─────────────────────────────────────────────────────────────────

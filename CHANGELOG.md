@@ -32,6 +32,11 @@ call the legacy endpoints; they move to the new API in follow-up changes.
   params and `LogsParams.Recent` is replaced by `Tail`: the API keeps no session
   history. `SessionLogs.Container` is a `*string` (nil when the node cannot be
   reached). `Stop` returns the session UUID.
+- **Breaking:** `Accounts.Balance` returns `*AccountBalance` (`Balance` in
+  `MicroUSD`, `Currency`, `Decimals`) instead of a `*big.Int` in Wei, as the
+  new API reports it.
+- **Breaking:** `Network.Info` returns the typed `*NetworkInfo` instead of
+  `map[string]any`.
 - **Breaking:** the legacy service constants `ServiceMR` and `ServiceVPN` are
   replaced by `ServiceCompute` and `ServiceRender`.
 - **Breaking:** HTTP 400 responses are returned as `*ValidationError` (was a
@@ -53,6 +58,12 @@ call the legacy endpoints; they move to the new API in follow-up changes.
   session stops meanwhile.
 - Opt-in live compute integration tests (`OCTA_RUN_COMPUTE_INTEGRATION`)
   replace the legacy machine-rental ones.
+- `client.Hosting`: `Nodes`/`NodesRaw` (`HostingNode`) and `SetPrices`
+  (`NodePrices`, with the `Price` and `Int` helpers) for the account's nodes.
+- `client.Stats`: `GPUCurrent`, `GPUHistory` (with `GPUHistory.Points`) and
+  `GPULocations` for the public GPU market.
+- `Network.InfoRaw`.
+- `Stats` and `Hosting` read values sent as the string `"null"` as null.
 - `MicroUSD` money type (`Dollars()`, `String()`), `MachineGPU`, `Reliability`
   and the `Bool` helper for optional `*bool` parameters.
 - `MachineGPU` tolerates optional integers sent as the string `"null"`, as

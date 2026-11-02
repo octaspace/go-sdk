@@ -7,11 +7,13 @@
 //
 // The client is organized into resource sub-clients that mirror the API structure:
 //
-//	client.Accounts         – account profile, balance, wallet generation
+//	client.Accounts         – account balance (profile and wallet: legacy API)
 //	client.Nodes            – compute node listing and management
 //	client.Sessions         – running sessions: list, info, logs, stop, wait until ready
 //	client.Apps             – available application catalog
-//	client.Network          – network information
+//	client.Network          – public platform statistics
+//	client.Stats            – public GPU market statistics
+//	client.Hosting          – the account's nodes and their prices
 //	client.Compute          – machines for rent, start/restart compute sessions
 //	client.Render           – render nodes, start render sessions
 //	client.Services.MR      – legacy machine rental (removed with the legacy API)
@@ -211,6 +213,8 @@ type Client struct {
 	Network  *NetworkResource
 	Compute  *ComputeResource
 	Render   *RenderResource
+	Hosting  *HostingResource
+	Stats    *StatsResource
 	Services *ServicesResource
 	IdleJobs *IdleJobsResource
 }
@@ -255,6 +259,8 @@ func NewClient(apiKey string, opts ...Option) *Client {
 	}
 	c.Compute = &ComputeResource{c}
 	c.Render = &RenderResource{c}
+	c.Hosting = &HostingResource{c}
+	c.Stats = &StatsResource{c}
 	c.IdleJobs = &IdleJobsResource{c}
 	return c
 }

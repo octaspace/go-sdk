@@ -94,9 +94,30 @@ var checks = []check{
 		fn: func(ctx context.Context, c *octaspace.Client) (any, error) {
 			bal, err := c.Accounts.Balance(ctx)
 			if bal != nil {
-				return bal.String(), err
+				return bal.Balance.String(), err
 			}
 			return nil, err
+		},
+	},
+	{
+		id: "hosting.nodes", label: "client.Hosting.Nodes",
+		method: "GET", path: "/hosting/nodes", requiresAuth: true,
+		fn: func(ctx context.Context, c *octaspace.Client) (any, error) {
+			return c.Hosting.Nodes(ctx)
+		},
+	},
+	{
+		id: "stats.gpu.current", label: "client.Stats.GPUCurrent",
+		method: "GET", path: "/stats/gpu/current", requiresAuth: false,
+		fn: func(ctx context.Context, c *octaspace.Client) (any, error) {
+			return c.Stats.GPUCurrent(ctx, nil)
+		},
+	},
+	{
+		id: "stats.gpu.locations", label: "client.Stats.GPULocations",
+		method: "GET", path: "/stats/gpu/locations", requiresAuth: false,
+		fn: func(ctx context.Context, c *octaspace.Client) (any, error) {
+			return c.Stats.GPULocations(ctx)
 		},
 	},
 	{
