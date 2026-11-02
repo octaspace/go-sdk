@@ -69,8 +69,8 @@ func TestClient_AuthorizationHeader(t *testing.T) {
 		jsonHandler(map[string]any{})(w, r)
 	})
 	c.Network.Info(context.Background())
-	if got != "test-key" {
-		t.Errorf("Authorization = %q, want %q", got, "test-key")
+	if got != "Bearer test-key" {
+		t.Errorf("Authorization = %q, want %q", got, "Bearer test-key")
 	}
 }
 

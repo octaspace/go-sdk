@@ -7,6 +7,34 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [Unreleased]
+
+Work towards the next-generation OctaSpace API (branch `next`). Resources still
+call the legacy endpoints; they move to the new API in follow-up changes.
+
+### Changed
+
+- **Breaking:** the API key is sent as `Authorization: Bearer <key>` (RFC 6750),
+  as the new API requires; it used to be sent bare. A key passed with its
+  `Bearer ` prefix is accepted and not doubled.
+- **Breaking:** the default base URL is `BaseURLDev`
+  (`https://api-dev.octa.space`), the test stand of the new API, until its
+  production host is announced. The legacy production hosts serve the old API.
+- **Breaking:** HTTP 400 responses are returned as `*ValidationError` (was a
+  bare `*APIError`); the new API reports validation errors with 400.
+- GET retries no longer wait out a `Retry-After` above the 60-second cap: the
+  `RateLimitError` is returned at once, since the retry would be refused again.
+- A 202/204 response with an empty body no longer fails JSON decoding.
+
+### Added
+
+- `ConflictError` (HTTP 409) and `IsConflict`; `IsValidation`.
+- `RateLimit` (`RateLimit-Limit` / `-Remaining` / `-Reset`), exposed as
+  `APIError.RateLimit` and `Client.RateLimit()` for the latest response.
+- `BaseURLDev` constant.
+
+---
+
 ## [0.5.0] - 2026-07-22
 
 ### Fixed

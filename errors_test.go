@@ -2,6 +2,7 @@ package octaspace
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -70,7 +71,9 @@ func TestErrorFromResponse_Types(t *testing.T) {
 		{429, "*octaspace.RateLimitError"},
 		{500, "*octaspace.ServerError"},
 		{503, "*octaspace.ServerError"},
-		{400, "*octaspace.APIError"},
+		{400, "*octaspace.ValidationError"},
+		{409, "*octaspace.ConflictError"},
+		{418, "*octaspace.APIError"},
 	}
 	for _, tc := range tests {
 		t.Run(http.StatusText(tc.code), func(t *testing.T) {
@@ -81,6 +84,9 @@ func TestErrorFromResponse_Types(t *testing.T) {
 			err := errorFromResponse(resp, []byte(`{}`))
 			if err == nil {
 				t.Fatal("expected error, got nil")
+			}
+			if got := fmt.Sprintf("%T", err); got != tc.wantType {
+				t.Errorf("type = %s, want %s", got, tc.wantType)
 			}
 			var apiErr *APIError
 			if !errors.As(err, &apiErr) {

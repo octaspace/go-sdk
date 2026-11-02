@@ -21,9 +21,12 @@ client := octaspace.NewClient(os.Getenv("OCTA_API_KEY"))
 info, err := client.Network.Info(context.Background()) // public endpoint
 ```
 
-Pass an empty key for public endpoints. Authenticated requests send the key in
-the `Authorization` header. See [getting started](docs/getting-started.md) for
-client options, timeouts, logging, retries, and failover.
+Pass an empty key for public endpoints. Authenticated requests send the key as
+`Authorization: Bearer <key>`; keys (`octa_ak_…`) are issued in Cube under
+Profile → Credentials. The default base URL is `octaspace.BaseURLDev`
+(`https://api-dev.octa.space`), the test stand of the new API, until its
+production host is announced. See [getting started](docs/getting-started.md)
+for client options, timeouts, logging, retries, and failover.
 
 ## Run and test
 
