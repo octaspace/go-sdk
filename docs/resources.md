@@ -5,8 +5,50 @@ no filter is required.
 
 ## Network
 
-`client.Network.Info(ctx)` reads public network information and returns
-`map[string]any`, because its server-defined schema can change.
+`client.Network.Info(ctx)` returns the public platform statistics as
+`*NetworkInfo` (nodes, capacity, sessions, users, rendered frames, VPN relays)
+as of the latest snapshot, taken every few minutes (`At`, `Time()`). It needs
+no API key; `InfoRaw` returns the body unchanged.
+
+## Stats
+
+`client.Stats` is the public GPU market (no API key needed):
+
+- `GPUCurrent(ctx, &GPUStatsParams{Verified: VerifiedYes})` → `*GPUMarket`:
+  per GPU model the counts (of GPUs, not nodes), usage, TFLOPS and price
+  percentiles per GPU-hour (`AvailablePrice` / `RentedPrice`, `*MicroUSD`,
+  nil when there is no price).
+- `GPUHistory(ctx, &GPUHistoryParams{GPUNames, Verified, Start, End, Step})` →
+  `map[string]GPUHistory` per model, as the API's parallel series; `Points()`
+  turns one into a value per step. `Step` is at least 5 minutes and the range
+  at most 2000 points.
+- `GPULocations(ctx)` → GPUs by city and model.
+
+## Hosting
+
+`client.Hosting` manages the nodes the account hosts:
+
+- `Nodes(ctx)` returns the **online** nodes as `[]HostingNode` (a node that is
+  down is not listed): `Status` (`NodeIdle`, `NodeRented`, ...), `Activity`
+  of a running check, `Maintenance`, `Verified`, `Services` (whether the node
+  is offered for each enabled service, and `Reason` if not), `Prices`,
+  `System`, `Location`, `OnlineAt`, `Uptime`, `UptimePercent`.
+  `System.GPUs` are `map[string]any` as the node reports them: their fields are
+  not fixed by the API.
+- `SetPrices(ctx, number, NodePrices{...})` changes only the prices given
+  (`octaspace.Price(...)`, `octaspace.Int(...)` for the pointers); zero is a
+  valid storage price or minimum rent. The API checks the ranges: an invalid
+  value is a `*ValidationError`, an unknown node a `*NotFoundError`.
+
+```go
+err := client.Hosting.SetPrices(ctx, "7KQ4-M2XD-4", octaspace.NodePrices{
+	Base:           octaspace.Price(250_000), // $0.25 per hour
+	MinRentMinutes: octaspace.Int(15),
+})
+```
+
+Some statistics and node fields arrive from the API as the string `"null"`
+instead of JSON null; `Stats` and `Hosting` read them as null.
 
 ## Compute
 
@@ -47,8 +89,11 @@ uuid, err := client.Compute.Start(ctx, &octaspace.ComputeStartParams{
 
 ## Accounts
 
-`client.Accounts.Profile(ctx)`, `Balance(ctx)`, and `GenerateWallet(ctx)` cover
-account access. Balances are represented with `*big.Int`/`BigInt` in Wei.
+`client.Accounts.Balance(ctx)` returns `*AccountBalance`: `Balance` in
+`MicroUSD` (negative while a session runs past what the account has),
+`Currency` (`"USD"`) and `Decimals` (6). It is read from a database replica,
+so a charge may show up a moment later. `Profile` and `GenerateWallet` belong to
+the legacy API and are removed with it.
 
 ## Apps
 

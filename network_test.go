@@ -5,18 +5,28 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"os"
 	"testing"
 )
 
 func TestNetwork_Info(t *testing.T) {
-	want := map[string]any{"nodes": float64(42), "region": "eu-west"}
-	c, _ := newTestClient(t, jsonHandler(want))
+	var want NetworkInfo
+	decodeStrict(t, "testdata/next/network.json", &want)
+	fixture, err := os.ReadFile("testdata/next/network.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, _ := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write(fixture) })
 	got, err := c.Network.Info(context.Background())
 	if err != nil {
 		t.Fatalf("Info: %v", err)
 	}
-	if got["region"] != "eu-west" {
-		t.Errorf("region = %v, want eu-west", got["region"])
+	if got.At == 0 || got.Time().Unix() != got.At || got.Nodes.Online != 3 || got.Power.TFLOPS <= 0 || got.Render.FramesTotal == 0 {
+		t.Errorf("Info = %+v", got)
+	}
+	raw, err := c.Network.InfoRaw(context.Background())
+	if err != nil || string(raw) != string(fixture) {
+		t.Errorf("InfoRaw: %v", err)
 	}
 }
 

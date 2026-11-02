@@ -91,7 +91,8 @@ func ExampleAPIError_errorsAs() {
 func ExampleClient_Network() {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		json.NewEncoder(w).Encode(map[string]any{
-			"nodes": map[string]any{"count": 690, "vpn": 147},
+			"at":    1793566134,
+			"nodes": map[string]any{"online": 690, "available": 420, "rented": 250, "countries": 41},
 		})
 	}))
 	defer srv.Close()
@@ -105,10 +106,10 @@ func ExampleClient_Network() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	// info is map[string]any — fields vary by response.
-	fmt.Printf("network keys: %d\n", len(info))
+	fmt.Printf("online %d, rented %d, in %d countries\n",
+		info.Nodes.Online, info.Nodes.Rented, info.Nodes.Countries)
 	// Output:
-	// network keys: 1
+	// online 690, rented 250, in 41 countries
 }
 
 // ExampleVPNCreateParams shows how to start a WireGuard VPN session and a
