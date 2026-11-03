@@ -9,9 +9,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-The SDK moves to the next-generation OctaSpace API (branch `next`): every
-resource now calls the new endpoints and the legacy API is removed. See the
-[migration guide](docs/migration-next.md).
+Every resource now calls the current OctaSpace API endpoints; resources the API
+no longer has are removed.
 
 ### Changed
 
@@ -19,8 +18,7 @@ resource now calls the new endpoints and the legacy API is removed. See the
   as the new API requires; it used to be sent bare. A key passed with its
   `Bearer ` prefix is accepted and not doubled.
 - **Breaking:** the default base URL is `BaseURLDev`
-  (`https://api-dev.octa.space`), the test stand of the new API, until its
-  production host is announced. The legacy production hosts serve the old API.
+  (`https://api-dev.octa.space`).
 - **Breaking:** `client.Services.Render` (an untyped `map[string]any` wrapper of
   `/services/render`) is replaced by the typed `client.Render`.
 - **Breaking:** sessions move to the new API. `client.Sessions` gains `Get`,
@@ -85,16 +83,13 @@ resource now calls the new endpoints and the legacy API is removed. See the
 
 ### Removed
 
-- **Breaking:** the legacy resources without a counterpart in the next API:
+- **Breaking:** resources without a counterpart in the API:
   `client.Nodes` (list, find, ident, logs, reboot, price updates by ID),
   `client.Apps`, `client.IdleJobs`, `client.Services` (`MR`, `R`, `VPN`) and
   `Accounts.Profile` / `ProfileRaw` / `GenerateWallet`, with their types.
   Hosted nodes and their prices are in `client.Hosting`.
 - **Breaking:** the helper types `BigInt`, `FlexInt64` and `FlexString`, which
   only the legacy models used.
-- The legacy Swagger/live contract inventory (`docs/contracts.md`) and the
-  machine-rental guide (`docs/machine-rentals.md`); see `docs/resources.md`
-  and `docs/migration-next.md`.
 
 ---
 

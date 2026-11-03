@@ -7,7 +7,7 @@ unchanged (see [raw JSON](raw-json.md)). Sessions are covered in
 
 ## Compute
 
-`client.Compute` rents machines on the new API.
+`client.Compute` rents machines.
 
 - `List(ctx)` returns `[]ComputeMachine` (`GET /services/compute`); `ListRaw`
   returns the body unchanged. Authentication is optional: without a key the
@@ -44,11 +44,10 @@ uuid, err := client.Compute.Start(ctx, &octaspace.ComputeStartParams{
 
 ## Render
 
-`client.Render` rents render nodes on the new API: `List(ctx)` returns
+`client.Render` rents render nodes: `List(ctx)` returns
 `[]RenderMachine` (nodes with an NVIDIA GPU and a Blender score, billed by
 `BasePrice` per hour), `Start(ctx, nodeNumber)` and `StartBatch` work as for
-compute. Render is still being migrated to the new API, so its behaviour may
-change.
+compute.
 
 ## Hosting
 

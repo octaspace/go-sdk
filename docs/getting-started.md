@@ -11,7 +11,7 @@ balance, err := client.Accounts.Balance(ctx)
 if err != nil {
 	return err
 }
-fmt.Println(balance.Balance) // e.g. $2.175268
+fmt.Println(balance.Balance) // e.g. $12.500000
 ```
 
 An empty key is valid for public endpoints such as `Network.Info`. The client
@@ -21,8 +21,8 @@ omits the `Authorization` header in that case.
 
 The API takes an account API key (`octa_ak_…`), issued in Cube under
 Profile → Credentials. The client sends it as `Authorization: Bearer <key>`; a
-key pasted together with its `Bearer ` prefix works too. Old account tokens of
-the legacy API are rejected with `401 Invalid bearer token`: issue a new key.
+key pasted together with its `Bearer ` prefix works too. Any other token is
+rejected with `401 Invalid bearer token`.
 
 ## Configuration
 
@@ -36,9 +36,7 @@ client := octaspace.NewClient(apiKey,
 )
 ```
 
-The default base URL is `octaspace.BaseURLDev` (`https://api-dev.octa.space`),
-the test stand of the new API; the legacy production hosts still serve the old,
-incompatible API.
+The default base URL is `octaspace.BaseURLDev` (`https://api-dev.octa.space`).
 
 `WithBaseURLs` accepts ordered fallback hosts. Failover happens only for
 network failures; API responses, including 5xx, are returned from the first

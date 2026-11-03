@@ -9,8 +9,8 @@ import (
 	"time"
 )
 
-// Service kinds reported in [Session.Service]. Only compute and render
-// sessions exist in the new API for now; decode others as [Session] too.
+// Service kinds reported in [Session.Service]. Sessions of another kind
+// decode as [Session] too.
 const (
 	ServiceCompute = "compute"
 	ServiceRender  = "render"

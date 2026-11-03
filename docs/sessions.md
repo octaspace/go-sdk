@@ -66,8 +66,7 @@ Many fields are unknown while a session is starting: prices are zero and
 - `Ports` maps a container port to its public port on the node; `URLs` maps an
   HTTP port to its public URL.
 - `NodeHW.Disk` is the rented disk in GB; `NetDownMbps`/`NetUpMbps` are the
-  node's network speed in whole Mbit/s (0 for sessions started before the API
-  reported it).
+  node's network speed in whole Mbit/s (0 if unknown).
 
 Use `client.Sessions.GetRaw(ctx, uuid)` or `ListRaw(ctx)` when the exact server
 response is needed.

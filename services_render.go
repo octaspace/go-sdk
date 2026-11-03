@@ -6,8 +6,6 @@ import (
 )
 
 // RenderResource rents render nodes. Obtain via [Client.Render].
-//
-// Render in the new API is still being migrated: its behaviour may change.
 type RenderResource struct{ c *Client }
 
 // List returns the nodes available for render: an NVIDIA GPU with a Blender

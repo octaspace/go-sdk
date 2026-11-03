@@ -40,9 +40,7 @@ import (
 // Version is the current SDK version, embedded in the default User-Agent header.
 const Version = "0.5.0"
 
-// BaseURLDev is the test stand of the next-generation OctaSpace API. It is the
-// default base URL until the production host of the new API is announced; the
-// legacy production hosts still serve the old, incompatible API.
+// BaseURLDev is the default base URL of the OctaSpace API.
 const BaseURLDev = "https://api-dev.octa.space"
 
 const (
