@@ -234,7 +234,7 @@ func TestSessions_WaitReady_OtherError(t *testing.T) {
 }
 
 func TestSession_SSHProxyOnlyFixture(t *testing.T) {
-	// A live session started from Cube with SSH: the proxy and the web
+	// A session started from the dashboard with SSH: the proxy and the web
 	// terminal are set up, direct SSH is not (the account has no SSH key).
 	var s Session
 	decodeStrict(t, "testdata/next/session_compute_ssh_proxy.json", &s)
