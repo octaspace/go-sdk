@@ -1,8 +1,29 @@
 # Sessions
 
-`client.Sessions` works with the account's running sessions, both compute and
-render. They share the `Session` type; `Service` tells them apart
+[← Back to README](../README.md)
+
+**On this page:** [Lifecycle](#lifecycle) · [List and get](#list-and-get) ·
+[Wait until ready](#wait-until-ready) · [Connect](#connect) · [Logs](#logs) ·
+[Stop](#stop) · [Session fields](#session-fields)
+
+`client.Sessions` works with your running sessions, both compute and render.
+They share the `Session` type; `Service` tells them apart
 (`octaspace.ServiceCompute`, `octaspace.ServiceRender`).
+
+## Lifecycle
+
+```text
+Compute.Start / Render.Start ──► starting ──► ready ──► Sessions.Stop
+                                    ▲           │
+                                    └─ Restart ─┘
+```
+
+| `Status` | Meaning |
+| --- | --- |
+| `SessionStarting` | The container is being set up; see `Progress` and `PullPercent` |
+| `SessionReady` | The session is running and can be used |
+
+A stopped session is no longer returned by the API.
 
 ## List and get
 
@@ -15,12 +36,9 @@ if octaspace.IsNotFound(err) {
 }
 ```
 
-Only running sessions are returned; a stopped session is no longer available.
-
 ## Wait until ready
 
-A session is `SessionStarting` while its container is set up, then
-`SessionReady`. `WaitReady` polls it until it is ready:
+`WaitReady` polls a session until it is ready:
 
 ```go
 ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
@@ -36,18 +54,23 @@ if errors.Is(err, octaspace.ErrSessionStopped) {
 }
 ```
 
-It checks every 3 seconds (`WaitOptions.Interval`). Limit the wait with the
-context.
+It checks every 3 seconds; change this with `WaitOptions.Interval`. Limit the
+wait with the context.
 
 ## Connect
 
-Once a session is ready:
+When a compute session is ready, these fields tell you how to reach it:
 
-- `SSH.Direct` and `SSH.Proxy` are the SSH endpoints (`Host`, `Port`, `User`),
-  and `SSH.Web` is the web terminal. They are empty unless SSH was requested.
-- `Ports` maps each exposed container port to its public port on the node.
-- `URLs` maps each HTTP port to its public URL, and `FM` is the web file
-  manager URL if it was started.
+| Field | Contains |
+| --- | --- |
+| `SSH.Direct`, `SSH.Proxy` | SSH endpoints: `Host`, `Port` and the `User` to log in as |
+| `SSH.Web` | URL of the web terminal |
+| `FM` | URL of the web file browser |
+| `Ports` | Each exposed container port mapped to its public port on the node |
+| `URLs` | Each HTTP port mapped to its public URL |
+
+The SSH fields are empty unless SSH was turned on when the session started,
+and `FM` is empty unless the file browser was.
 
 ## Logs
 
@@ -61,10 +84,13 @@ for _, e := range logs.System {
 }
 ```
 
-Logs are available for running compute sessions. `Tail` is the number of
-container output lines, 1 to 1000 (200 by default). `Container` is `nil` when
-the node cannot be reached, which differs from an empty log;
-`ContainerTruncated` reports that the output was cut to its last 1 MiB.
+| Field | Contains |
+| --- | --- |
+| `Container` | The latest container output; `Tail` sets the number of lines, 1 – 1000 (200 by default). `nil` when the node cannot be reached, which differs from an empty log. |
+| `ContainerTruncated` | `true` if the output was cut to its last 1 MiB |
+| `System` | Platform events of the session, oldest first |
+
+Logs are available for running compute sessions.
 
 ## Stop
 
@@ -72,16 +98,21 @@ the node cannot be reached, which differs from an empty log;
 _, err := client.Sessions.Stop(ctx, uuid)
 ```
 
-Stopping takes a few seconds, during which `Get` may still return the session;
+Stopping takes a few seconds, during which `Get` can still return the session;
 after that it returns a `*NotFoundError`. Stopping a session twice is safe.
-A session stopped before its `MinRentMinutes` is charged for that long.
+
+> [!NOTE]
+> A session stopped before its minimum rent (`MinRentMinutes`) is charged as
+> if it ran that long.
 
 ## Session fields
 
-- Prices (`BasePrice`, `StoragePrice`, `TrafficPrice`) are fixed when the
-  session starts; `ChargeAmount` is what it has cost so far.
-- `Duration` is in seconds. `StartedAt` is in Unix milliseconds; use
-  `StartedTime()` for a `time.Time`.
-- `NodeHW` describes the node: CPU, memory, GPUs, the rented disk in GB and the
-  network speed in Mbit/s.
-- While a session is starting, its prices are zero and `NodeHW` is `nil`.
+| Field | Meaning |
+| --- | --- |
+| `BasePrice`, `StoragePrice`, `TrafficPrice` | Prices, fixed when the session starts |
+| `ChargeAmount` | What the session has cost so far |
+| `Duration` | Seconds since the start |
+| `StartedAt` | Unix milliseconds; `StartedTime()` returns a `time.Time` |
+| `NodeHW` | The node: CPU, memory, GPUs, the rented disk in GB, network speed |
+
+While a session is starting, its prices are zero and `NodeHW` is `nil`.

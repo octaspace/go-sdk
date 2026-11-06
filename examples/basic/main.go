@@ -1,6 +1,6 @@
 // Basic usage example for the OctaSpace Go SDK.
 //
-// Without OCTA_API_KEY — only public endpoints are called.
+// Without OCTA_API_KEY — only the methods that need no API key are called.
 // With OCTA_API_KEY    — the account's balance, sessions and nodes are shown too.
 // OCTA_API_URL overrides the base URL (default: octaspace.DefaultBaseURL).
 //

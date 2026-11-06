@@ -5,7 +5,8 @@ import (
 	"time"
 )
 
-// NetworkResource provides the public statistics of the platform.
+// NetworkResource provides the statistics of the platform; no API key is
+// needed.
 // Obtain via [Client.Network].
 type NetworkResource struct{ c *Client }
 

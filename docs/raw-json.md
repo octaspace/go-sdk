@@ -1,5 +1,7 @@
 # Raw JSON responses
 
+[← Back to README](../README.md)
+
 The typed methods are the recommended way to use the API. When you need the
 response exactly as the API sent it, for example to store it or to read a field
 the SDK does not have yet, use the `…Raw` variant:
