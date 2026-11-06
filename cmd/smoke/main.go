@@ -188,7 +188,7 @@ func firstActiveSessionUUID(ctx context.Context, c *octaspace.Client, computeOnl
 
 func main() {
 	var (
-		baseURL   = flag.String("base-url", octaspace.BaseURLDev, "API base URL")
+		baseURL   = flag.String("base-url", octaspace.DefaultBaseURL, "API base URL")
 		timeout   = flag.Duration("timeout", 30*time.Second, "per-request timeout")
 		jsonOut   = flag.Bool("json", false, "output results as JSON")
 		onlyCheck = flag.String("only", "", "run only the check with this id")

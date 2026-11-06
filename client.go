@@ -1,4 +1,4 @@
-// Package octaspace is a Go client for the OctaSpace API (next generation).
+// Package octaspace is the Go client for the OctaSpace API.
 //
 // Basic usage:
 //
@@ -40,13 +40,11 @@ import (
 // Version is the current SDK version, embedded in the default User-Agent header.
 const Version = "0.5.0"
 
-// BaseURLDev is the test stand of the next-generation OctaSpace API. It is the
-// default base URL until the production host of the new API is announced; the
-// legacy production hosts still serve the old, incompatible API.
-const BaseURLDev = "https://api-dev.octa.space"
+// DefaultBaseURL is the default base URL of the OctaSpace API.
+const DefaultBaseURL = "https://api-dev.octa.space"
 
 const (
-	defaultBaseURL    = BaseURLDev
+	defaultBaseURL    = DefaultBaseURL
 	defaultTimeout    = 30 * time.Second
 	defaultMaxRetries = 2
 )
@@ -109,7 +107,7 @@ type config struct {
 // Option is a functional option for configuring a [Client].
 type Option func(*config)
 
-// WithBaseURL overrides the API base URL (default: [BaseURLDev]).
+// WithBaseURL overrides the API base URL (default: [DefaultBaseURL]).
 // Equivalent to WithBaseURLs([]string{baseURL}).
 func WithBaseURL(baseURL string) Option {
 	return func(c *config) {
@@ -219,8 +217,8 @@ func newDefaultTransport() http.RoundTripper {
 
 // NewClient creates a new OctaSpace API client authenticated with apiKey.
 //
-// apiKey is an account API key (octa_ak_…), issued in Cube under
-// Profile → Credentials. It is sent as "Authorization: Bearer <apiKey>"; a key
+// apiKey is an account API key (octa_ak_…), created in the OctaSpace account
+// under Profile → Credentials. It is sent as "Authorization: Bearer <apiKey>"; a key
 // that already carries the "Bearer " prefix is accepted as well. Pass an empty
 // string to call only the public endpoints (e.g. Network.Info) anonymously.
 func NewClient(apiKey string, opts ...Option) *Client {

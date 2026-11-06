@@ -94,10 +94,8 @@ type MachineGPU struct {
 	Tuned bool `json:"tuned"`
 }
 
-// UnmarshalJSON decodes a GPU, tolerating the optional integers sent as the
-// string "null" (or as numeric strings): some nodes, e.g. with Intel Arc
-// cards, report missing values that way, and one such GPU must not break the
-// whole listing.
+// UnmarshalJSON decodes a GPU. Optional integers may come as numbers, numeric
+// strings or the string "null"; a missing value decodes as nil.
 func (g *MachineGPU) UnmarshalJSON(data []byte) error {
 	type plain MachineGPU
 	var raw struct {
@@ -145,16 +143,15 @@ func optionalInt(field string, data json.RawMessage) (*int, error) {
 	return &n, nil
 }
 
-// Reliability describes how dependable a node is. The API documents it as an
-// open object: Uptime is always present, the session statistics only when
-// known. Fetch the listing with ListRaw for fields not modelled here.
+// Reliability describes how dependable a node is. Uptime is always present,
+// the session statistics only when known. Fetch the listing with ListRaw for
+// fields not modelled here.
 type Reliability struct {
 	// Uptime is the percent of time online over the last 30 days (since the
 	// node first came online, for a newer node).
 	Uptime float64 `json:"uptime"`
 
-	// Session stability, present when known. The API does not document these
-	// fields; they are passed through as reported.
+	// Session stability, present when known, as the API reports it.
 	Stability float64 `json:"stability"`
 	SNormal   int     `json:"s_normal"`
 	SFailed   int     `json:"s_failed"`

@@ -45,11 +45,11 @@ func TestRender_Start(t *testing.T) {
 	var method, path string
 	var body []byte
 	c, _ := newTestClient(t, captureBody(t, &method, &path, &body, 201, `{"uuid":"r-1"}`))
-	uuid, err := c.Render.Start(context.Background(), "M95S-WZG8-7")
+	uuid, err := c.Render.Start(context.Background(), "7KQ4-M2XD-4")
 	if err != nil || uuid != "r-1" {
 		t.Fatalf("Start = %q, %v", uuid, err)
 	}
-	if method != http.MethodPost || path != "/services/render" || string(body) != `{"node_number":"M95S-WZG8-7"}` {
+	if method != http.MethodPost || path != "/services/render" || string(body) != `{"node_number":"7KQ4-M2XD-4"}` {
 		t.Errorf("request = %s %s %s", method, path, body)
 	}
 	if _, err := c.Render.Start(context.Background(), ""); err == nil {
@@ -59,7 +59,7 @@ func TestRender_Start(t *testing.T) {
 
 func TestRender_Start_Unavailable(t *testing.T) {
 	c, _ := newTestClient(t, statusHandler(503, `{"message":"Service is temporarily unavailable"}`))
-	_, err := c.Render.Start(context.Background(), "M95S-WZG8-7")
+	_, err := c.Render.Start(context.Background(), "7KQ4-M2XD-4")
 	var se *ServerError
 	if !errors.As(err, &se) || se.StatusCode != 503 {
 		t.Errorf("err = %v, want ServerError 503", err)
@@ -72,12 +72,12 @@ func TestRender_StartBatch(t *testing.T) {
 	c, _ := newTestClient(t, captureBody(t, &method, &path, &body, 200,
 		`[{"id":"a","status":0,"uuid":"r-1"},{"id":"b","status":1,"reason":"Node not available"}]`))
 	got, err := c.Render.StartBatch(context.Background(), []RenderBatchItem{
-		{ID: "a", NodeNumber: "M95S-WZG8-7"}, {ID: "b", NodeNumber: "7R2S-S05E-S"},
+		{ID: "a", NodeNumber: "7KQ4-M2XD-4"}, {ID: "b", NodeNumber: "3HW9-P6TR-8"},
 	})
 	if err != nil || len(got) != 2 || !got[0].OK() || got[1].OK() {
 		t.Fatalf("StartBatch = %+v, %v", got, err)
 	}
-	if string(body) != `[{"id":"a","node_number":"M95S-WZG8-7"},{"id":"b","node_number":"7R2S-S05E-S"}]` {
+	if string(body) != `[{"id":"a","node_number":"7KQ4-M2XD-4"},{"id":"b","node_number":"3HW9-P6TR-8"}]` {
 		t.Errorf("body = %s", body)
 	}
 	if _, err := c.Render.StartBatch(context.Background(), nil); err == nil {

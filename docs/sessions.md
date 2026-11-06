@@ -1,73 +1,87 @@
 # Sessions
 
-`client.Sessions` covers the account's **running** sessions. Compute and render
-sessions share the `Session` type and are told apart by `Service`
-(`octaspace.ServiceCompute` / `ServiceRender`); the compute-only fields
-(`SSH`, `Ports`, `URLs`, `FM`, `Envs`, `RX`/`TX`, storage and traffic prices)
-stay zero for render. A session of another kind still decodes.
+`client.Sessions` works with the account's running sessions, both compute and
+render. They share the `Session` type; `Service` tells them apart
+(`octaspace.ServiceCompute`, `octaspace.ServiceRender`).
 
-## Listing sessions
+## List and get
 
 ```go
 sessions, err := client.Sessions.List(ctx) // running sessions, oldest first
+
+session, err := client.Sessions.Get(ctx, uuid)
+if octaspace.IsNotFound(err) {
+	// the session has stopped, or the UUID is unknown
+}
 ```
 
-Stopped sessions are not listed, and there is no session history in the API.
+Only running sessions are returned; a stopped session is no longer available.
 
-## Session operations
+## Wait until ready
 
-```go
-session, err := client.Sessions.Get(ctx, uuid)                  // GET /services/{uuid}/info
-logs, err := client.Sessions.Logs(ctx, uuid, &octaspace.LogsParams{Tail: 100})
-_, err = client.Sessions.Stop(ctx, uuid)                         // 202: stopping
-```
-
-- `Get` of a stopped or unknown session is a `*NotFoundError`; a malformed UUID
-  is a `*ValidationError`.
-- `Logs` works for running compute sessions only. `Tail` is 1..1000 (0 uses the
-  API default, 200). `Container` is nil when the node cannot be reached, which
-  is different from an empty log; `ContainerTruncated` marks output cut to its
-  last 1 MiB. System events carry `TS` in Unix milliseconds (`Time()`).
-- `Stop` is asynchronous and idempotent. The session can still be reported for
-  a few seconds afterwards: treat `Get` returning `NotFoundError` as stopped.
-  A session stopped before its `MinRentMinutes` is charged base and storage
-  for that long.
-
-## Waiting until a session is ready
-
-A started or restarted session is `SessionStarting` while it is configured
-(`Progress`, and `PullPercent` while the image is pulled), then
-`SessionReady`.
+A session is `SessionStarting` while its container is set up, then
+`SessionReady`. `WaitReady` polls it until it is ready:
 
 ```go
 ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 defer cancel()
+
 session, err := client.Sessions.WaitReady(ctx, uuid, &octaspace.WaitOptions{
-	OnProgress: func(s *octaspace.Session) { fmt.Println(s.Status, s.Progress) },
+	OnProgress: func(s *octaspace.Session) {
+		fmt.Println(s.Status, s.Progress, s.PullPercent)
+	},
 })
 if errors.Is(err, octaspace.ErrSessionStopped) {
-	// the session stopped while starting, e.g. its SSH setup failed
+	// the session stopped while starting, for example because SSH could not be set up
 }
 ```
 
-`WaitReady` polls every 3 seconds by default (`WaitOptions.Interval`); bound
-the wait with the context.
+It checks every 3 seconds (`WaitOptions.Interval`). Limit the wait with the
+context.
+
+## Connect
+
+Once a session is ready:
+
+- `SSH.Direct` and `SSH.Proxy` are the SSH endpoints (`Host`, `Port`, `User`),
+  and `SSH.Web` is the web terminal. They are empty unless SSH was requested.
+- `Ports` maps each exposed container port to its public port on the node.
+- `URLs` maps each HTTP port to its public URL, and `FM` is the web file
+  manager URL if it was started.
+
+## Logs
+
+```go
+logs, err := client.Sessions.Logs(ctx, uuid, &octaspace.LogsParams{Tail: 100})
+if logs.Container != nil {
+	fmt.Print(*logs.Container)
+}
+for _, e := range logs.System {
+	fmt.Println(e.Time(), e.Msg)
+}
+```
+
+Logs are available for running compute sessions. `Tail` is the number of
+container output lines, 1 to 1000 (200 by default). `Container` is `nil` when
+the node cannot be reached, which differs from an empty log;
+`ContainerTruncated` reports that the output was cut to its last 1 MiB.
+
+## Stop
+
+```go
+_, err := client.Sessions.Stop(ctx, uuid)
+```
+
+Stopping takes a few seconds, during which `Get` may still return the session;
+after that it returns a `*NotFoundError`. Stopping a session twice is safe.
+A session stopped before its `MinRentMinutes` is charged for that long.
 
 ## Session fields
 
-Many fields are unknown while a session is starting: prices are zero and
-`NodeHW` is nil until it is configured.
-
-- Prices are `MicroUSD`, fixed at start; `ChargeAmount` is what was charged so
-  far.
-- `Duration` is in seconds, `StartedAt` in Unix milliseconds (`StartedTime()`).
-- `SSH.Direct` / `SSH.Proxy` are nil and `SSH.Web` is empty unless SSH was
-  requested; `SSHEndpoint.User` is the user to log in as.
-- `Ports` maps a container port to its public port on the node; `URLs` maps an
-  HTTP port to its public URL.
-- `NodeHW.Disk` is the rented disk in GB; `NetDownMbps`/`NetUpMbps` are the
-  node's network speed in whole Mbit/s (0 for sessions started before the API
-  reported it).
-
-Use `client.Sessions.GetRaw(ctx, uuid)` or `ListRaw(ctx)` when the exact server
-response is needed.
+- Prices (`BasePrice`, `StoragePrice`, `TrafficPrice`) are fixed when the
+  session starts; `ChargeAmount` is what it has cost so far.
+- `Duration` is in seconds. `StartedAt` is in Unix milliseconds; use
+  `StartedTime()` for a `time.Time`.
+- `NodeHW` describes the node: CPU, memory, GPUs, the rented disk in GB and the
+  network speed in Mbit/s.
+- While a session is starting, its prices are zero and `NodeHW` is `nil`.

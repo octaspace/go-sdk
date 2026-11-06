@@ -1,48 +1,56 @@
-# Getting started
+# Client configuration
 
-Create one client and reuse it concurrently. Every SDK method accepts a
-`context.Context` and returns a typed result plus an error.
-
-```go
-ctx := context.Background()
-client := octaspace.NewClient(os.Getenv("OCTA_API_KEY"))
-
-balance, err := client.Accounts.Balance(ctx)
-if err != nil {
-	return err
-}
-fmt.Println(balance.Balance) // e.g. $2.175268
-```
-
-An empty key is valid for public endpoints such as `Network.Info`. The client
-omits the `Authorization` header in that case.
-
-## Authentication
-
-The API takes an account API key (`octa_ak_…`), issued in Cube under
-Profile → Credentials. The client sends it as `Authorization: Bearer <key>`; a
-key pasted together with its `Bearer ` prefix works too. Old account tokens of
-the legacy API are rejected with `401 Invalid bearer token`: issue a new key.
-
-## Configuration
+`NewClient` takes the API key and optional settings:
 
 ```go
-client := octaspace.NewClient(apiKey,
-	octaspace.WithBaseURL(octaspace.BaseURLDev), // the default
+client := octaspace.NewClient(os.Getenv("OCTA_API_KEY"),
 	octaspace.WithTimeout(15*time.Second),
-	octaspace.WithMaxRetries(2),
+	octaspace.WithMaxRetries(3),
 	octaspace.WithUserAgent("my-service/1.0"),
 	octaspace.WithLogger(octaspace.NewStdLogger(log.Default())),
 )
 ```
 
-The default base URL is `octaspace.BaseURLDev` (`https://api-dev.octa.space`),
-the test stand of the new API; the legacy production hosts still serve the old,
-incompatible API.
+| Option | Default | Effect |
+| --- | --- | --- |
+| `WithTimeout(d)` | 30s | Limit for one method call, retries included |
+| `WithMaxRetries(n)` | 2 | Retries of failed GET requests; 0 turns them off |
+| `WithUserAgent(ua)` | `octaspace-go/<version>` | `User-Agent` header |
+| `WithLogger(l)` | none | Logs the method, path, status and duration of each request |
+| `WithHTTPClient(hc)` | tuned `http.Client` | Your own client, e.g. for a proxy or tracing |
+| `WithBaseURL(url)` | OctaSpace API | Another API host |
+| `WithBaseURLs(urls)` | — | Several hosts, tried in order when one is unreachable |
 
-`WithBaseURLs` accepts ordered fallback hosts. Failover happens only for
-network failures; API responses, including 5xx, are returned from the first
-reachable host. GET requests retry 429 and 5xx responses; POST and PATCH are
-not retried, so session-creation calls are not duplicated.
+## Context
 
-For API-specific examples, start with the [resource reference](resources.md).
+Every method takes a `context.Context` as its first argument. Cancelling it, or
+reaching its deadline, stops the call and any retries:
+
+```go
+ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+defer cancel()
+
+info, err := client.Network.Info(ctx)
+```
+
+## Logging
+
+`Logger` has `Debugf` and `Errorf` methods. Wrap a standard `*log.Logger` with
+`NewStdLogger`, or adapt the logger you already use:
+
+```go
+type slogAdapter struct{ l *slog.Logger }
+
+func (a slogAdapter) Debugf(f string, v ...any) { a.l.Debug(fmt.Sprintf(f, v...)) }
+func (a slogAdapter) Errorf(f string, v ...any) { a.l.Error(fmt.Sprintf(f, v...)) }
+
+client := octaspace.NewClient(apiKey, octaspace.WithLogger(slogAdapter{slog.Default()}))
+```
+
+The API key is never logged.
+
+## Several hosts
+
+With `WithBaseURLs`, a call moves to the next host only when the current one
+cannot be reached (DNS, connection or TLS failure). An HTTP error response,
+including 5xx, is returned as it is.

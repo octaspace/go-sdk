@@ -12,8 +12,8 @@ import (
 
 func TestNewClient_DefaultBaseURLIsDevStand(t *testing.T) {
 	c := NewClient("")
-	if got := c.cfg.baseURLs; len(got) != 1 || got[0] != BaseURLDev {
-		t.Fatalf("baseURLs = %v, want [%s]", got, BaseURLDev)
+	if got := c.cfg.baseURLs; len(got) != 1 || got[0] != DefaultBaseURL {
+		t.Fatalf("baseURLs = %v, want [%s]", got, DefaultBaseURL)
 	}
 }
 

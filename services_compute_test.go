@@ -35,12 +35,12 @@ func TestComputeMachine_FixtureCoversEveryField(t *testing.T) {
 	}
 	var m ComputeMachine
 	for _, x := range machines {
-		if x.NodeNumber == "M95S-WZG8-7" {
+		if x.NodeNumber == "7KQ4-M2XD-4" {
 			m = x
 		}
 	}
 	if m.NodeNumber == "" {
-		t.Fatal("M95S-WZG8-7 not in fixture")
+		t.Fatal("7KQ4-M2XD-4 not in fixture")
 	}
 	if m.BasePrice != 100 || m.StoragePrice != 100 || m.TrafficPrice != 100 || m.MinRentMinutes != 0 {
 		t.Errorf("prices = %v/%v/%v min %d", m.BasePrice, m.StoragePrice, m.TrafficPrice, m.MinRentMinutes)
@@ -112,10 +112,10 @@ func captureBody(t *testing.T, gotMethod, gotPath *string, gotBody *[]byte, code
 func TestCompute_Start_SendsOnlySetFields(t *testing.T) {
 	var method, path string
 	var body []byte
-	c, _ := newTestClient(t, captureBody(t, &method, &path, &body, 201, `{"uuid":"2a63b54f-f243-45ab-8416-2728e178a384"}`))
+	c, _ := newTestClient(t, captureBody(t, &method, &path, &body, 201, `{"uuid":"5f3c2b1a-7d6e-4f8a-9b0c-1d2e3f4a5b6c"}`))
 
 	uuid, err := c.Compute.Start(context.Background(), &ComputeStartParams{
-		NodeNumber: "M95S-WZG8-7",
+		NodeNumber: "7KQ4-M2XD-4",
 		Image:      "alpine:3.20",
 		Entrypoint: "sh -c",
 		Args:       `"sleep 3600"`,
@@ -125,13 +125,13 @@ func TestCompute_Start_SendsOnlySetFields(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
-	if uuid != "2a63b54f-f243-45ab-8416-2728e178a384" {
+	if uuid != "5f3c2b1a-7d6e-4f8a-9b0c-1d2e3f4a5b6c" {
 		t.Errorf("uuid = %q", uuid)
 	}
 	if method != http.MethodPost || path != "/services/compute" {
 		t.Errorf("request = %s %s", method, path)
 	}
-	want := `{"node_number":"M95S-WZG8-7","image":"alpine:3.20","envs":{"A":"1"},"entrypoint":"sh -c","args":"\"sleep 3600\"","ssh":false}`
+	want := `{"node_number":"7KQ4-M2XD-4","image":"alpine:3.20","envs":{"A":"1"},"entrypoint":"sh -c","args":"\"sleep 3600\"","ssh":false}`
 	if string(body) != want {
 		t.Errorf("body =\n%s\nwant\n%s", body, want)
 	}
@@ -169,13 +169,13 @@ func TestCompute_StartBatch(t *testing.T) {
 	c, _ := newTestClient(t, captureBody(t, &method, &path, &body, 200, resp))
 
 	got, err := c.Compute.StartBatch(context.Background(), []ComputeBatchItem{
-		{ID: "1", ComputeStartParams: ComputeStartParams{NodeNumber: "WJFM-MYWR-9", Image: "alpine:3.20"}},
+		{ID: "1", ComputeStartParams: ComputeStartParams{NodeNumber: "5NBT-C8VJ-2", Image: "alpine:3.20"}},
 		{ID: "two", ComputeStartParams: ComputeStartParams{NodeNumber: "ZZZZ-ZZZZ-Z", Image: "alpine:3.20"}},
 	})
 	if err != nil {
 		t.Fatalf("StartBatch: %v", err)
 	}
-	wantBody := `[{"id":"1","node_number":"WJFM-MYWR-9","image":"alpine:3.20"},{"id":"two","node_number":"ZZZZ-ZZZZ-Z","image":"alpine:3.20"}]`
+	wantBody := `[{"id":"1","node_number":"5NBT-C8VJ-2","image":"alpine:3.20"},{"id":"two","node_number":"ZZZZ-ZZZZ-Z","image":"alpine:3.20"}]`
 	if string(body) != wantBody {
 		t.Errorf("body =\n%s\nwant\n%s", body, wantBody)
 	}
@@ -262,7 +262,7 @@ func newCountingServer(t *testing.T, attempts *int, code int, body string) strin
 }
 
 func TestMachineGPU_OptionalIntsAsStrings(t *testing.T) {
-	// WJFM-MYWR-9 (Intel Arc B580) on the next stand reports missing values
+	// Some GPUs report missing values
 	// as the string "null" instead of JSON null.
 	var g MachineGPU
 	err := json.Unmarshal([]byte(`{"model":"Arc B580","core_clock":2850,"mem_clock":"null","power_limit":"","tuned":true}`), &g)

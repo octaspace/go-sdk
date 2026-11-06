@@ -8,7 +8,7 @@ import (
 	"net/url"
 )
 
-// The next API sometimes sends a missing value as the string "null" instead
+// The API sometimes sends a missing value as the string "null" instead
 // of JSON null: in GPU statistics (price percentiles, TFLOPS) and in what
 // nodes report about their hardware. A strictly typed decode then fails on
 // the whole response. Endpoints known to do this are read through

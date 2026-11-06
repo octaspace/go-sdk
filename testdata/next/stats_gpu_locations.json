@@ -1,22 +1,22 @@
 [
   {
-    "city": "Mukachevo",
-    "country": "Ukraine",
+    "city": "Frankfurt",
+    "country": "Germany",
     "verified": 2,
     "gpus": 2,
     "rented": 0,
     "model": "Arc B580",
-    "longitude": 22.718,
-    "latitude": 48.4425
+    "longitude": 8.6821,
+    "latitude": 50.1109
   },
   {
-    "city": "Mukachevo",
-    "country": "Ukraine",
+    "city": "Frankfurt",
+    "country": "Germany",
     "verified": 4,
     "gpus": 4,
     "rented": 1,
     "model": "NVIDIA GeForce RTX 3090",
-    "longitude": 22.718,
-    "latitude": 48.4425
+    "longitude": 8.6821,
+    "latitude": 50.1109
   }
 ]
