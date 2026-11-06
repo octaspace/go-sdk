@@ -18,8 +18,7 @@ const (
 	VerifiedNo  Verified = "no"  // GPUs of the other nodes
 )
 
-// StatsResource provides the public GPU market statistics. The endpoints do
-// not require authentication. Obtain via [Client.Stats].
+// StatsResource provides the GPU market statistics; no API key is needed. Obtain via [Client.Stats].
 type StatsResource struct{ c *Client }
 
 // Percentiles are price percentiles per GPU-hour. A percentile is nil when

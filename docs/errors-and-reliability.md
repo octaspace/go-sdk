@@ -1,20 +1,25 @@
 # Errors, rate limits and retries
 
+[← Back to README](../README.md)
+
+**On this page:** [Error types](#error-types) ·
+[Rate limits](#rate-limits) · [Retries](#retries)
+
 ## Error types
 
 An error response from the API is returned as one of these types. Each wraps
-`*APIError`, which has the HTTP status, the API's message, the request ID and
-rate limit details.
+`*APIError`, which holds the HTTP status, the API's message, the request ID and
+the rate limit state.
 
-| Type | Status | Helper |
-| --- | --- | --- |
-| `*ValidationError` | 400, 422 | `IsValidation` |
-| `*AuthenticationError` | 401 | `IsAuthError` |
-| `*PermissionError` | 403 | — |
-| `*NotFoundError` | 404 | `IsNotFound` |
-| `*ConflictError` | 409 | `IsConflict` |
-| `*RateLimitError` | 429 | `IsRateLimit` |
-| `*ServerError` | 5xx | — |
+| Type | Status | Helper | Typical cause |
+| --- | --- | --- | --- |
+| `*ValidationError` | 400, 422 | `IsValidation` | A parameter is missing or invalid |
+| `*AuthenticationError` | 401 | `IsAuthError` | The API key is missing, wrong or deleted |
+| `*PermissionError` | 403 | — | Access denied |
+| `*NotFoundError` | 404 | `IsNotFound` | Unknown or stopped session, unknown node |
+| `*ConflictError` | 409 | `IsConflict` | The session is already starting or restarting |
+| `*RateLimitError` | 429 | `IsRateLimit` | Too many requests |
+| `*ServerError` | 5xx | — | A temporary problem on the API side |
 
 When the API cannot be reached at all (DNS, connection or TLS failure), the
 error is a `*NetworkError`.
@@ -28,18 +33,22 @@ if errors.As(err, &apiErr) {
 }
 ```
 
-Include the request ID when you contact support about a failed call.
+> [!TIP]
+> Include the request ID when you contact support about a failed call.
 
 ## Rate limits
 
-The API limits requests per minute: 60 per IP address without an API key, 300
-per account with one, and 10 per account for starting and restarting sessions.
+| Requests | Limit per minute |
+| --- | --- |
+| Without an API key | 60 per IP address |
+| With an API key | 300 per account |
+| Starting and restarting sessions | 10 per account |
 
 `client.RateLimit()` returns the limit, the remaining requests and the seconds
 until the window resets, as of the latest response. A failed call carries the
 same in `APIError.RateLimit`.
 
-On a `*RateLimitError`, wait `RetryAfter` seconds before trying again:
+On a `*RateLimitError`, wait `RetryAfter` seconds before you try again:
 
 ```go
 var rl *octaspace.RateLimitError
@@ -51,11 +60,13 @@ if errors.As(err, &rl) {
 ## Retries
 
 GET requests are retried automatically on 429, 500, 502, 503 and 504, with
-exponential backoff and jitter, and honour `Retry-After` up to 60 seconds. When
-the API asks to wait longer, the `*RateLimitError` is returned at once.
+exponential backoff and jitter. They honour `Retry-After` up to 60 seconds;
+when the API asks to wait longer, the `*RateLimitError` is returned at once.
 
-Requests that change something (starting, restarting and stopping sessions,
-setting prices) are never retried, so they cannot run twice.
+> [!IMPORTANT]
+> Requests that change something — starting, restarting and stopping
+> sessions, setting prices — are never retried, so that they cannot run twice.
+> Decide yourself whether to repeat them after an error.
 
 Set the number of retries with `WithMaxRetries` and the time limit of a call,
 retries included, with `WithTimeout`.

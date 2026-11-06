@@ -12,8 +12,8 @@
 //	client.Sessions – running sessions: list, info, logs, stop, wait until ready
 //	client.Hosting  – the account's nodes and their prices
 //	client.Accounts – account balance
-//	client.Network  – public platform statistics
-//	client.Stats    – public GPU market statistics
+//	client.Network  – platform statistics (no API key needed)
+//	client.Stats    – GPU market statistics (no API key needed)
 //
 // All methods accept a [context.Context] as the first argument and return a
 // typed value and an error. Errors are one of the types defined in errors.go
@@ -217,10 +217,15 @@ func newDefaultTransport() http.RoundTripper {
 
 // NewClient creates a new OctaSpace API client authenticated with apiKey.
 //
-// apiKey is an account API key (octa_ak_…), created in the OctaSpace account
-// under Profile → Credentials. It is sent as "Authorization: Bearer <apiKey>"; a key
-// that already carries the "Bearer " prefix is accepted as well. Pass an empty
-// string to call only the public endpoints (e.g. Network.Info) anonymously.
+// apiKey is an API key of your OctaSpace account (octa_ak_…). Create one in
+// the OctaSpace dashboard (https://cube-dev.octa.space) under
+// Account → Credentials → API Keys; it is shown in full only once. The key is
+// sent as "Authorization: Bearer <apiKey>"; a key that already carries the
+// "Bearer " prefix is accepted as well.
+//
+// Pass an empty string to use only the methods that need no API key:
+// [NetworkResource.Info], the [StatsResource] methods, and the listings
+// [ComputeResource.List] and [RenderResource.List].
 func NewClient(apiKey string, opts ...Option) *Client {
 	cfg := &config{
 		apiKey:     normalizeAPIKey(apiKey),

@@ -1,29 +1,51 @@
 # Resources
 
-Each resource is a field of `Client`. Money is `octaspace.MicroUSD`, an
-integer number of millionths of a US dollar: `String()` formats it as
-`$0.250000`, `Dollars()` converts it to `float64`. Nodes are identified by
-their number, such as `7KQ4-M2XD-4`.
+[← Back to README](../README.md)
 
-Sessions are described in [their own guide](sessions.md).
+**On this page:** [Conventions](#conventions) · [Compute](#compute) ·
+[Render](#render) · [Hosting](#hosting) · [Accounts](#accounts) ·
+[Network](#network) · [Stats](#stats)
+
+Sessions have [their own guide](sessions.md).
+
+## Conventions
+
+| Concept | In the SDK |
+| --- | --- |
+| Money | `octaspace.MicroUSD`, an integer number of millionths of a US dollar. `String()` formats it as `$0.250000`; `Dollars()` returns a `float64`. |
+| Node | Identified by its node number, for example `7KQ4-M2XD-4`. Case, dashes and spaces are ignored. |
+| Network speed | Whole Mbit/s in `NetDownMbps` / `NetUpMbps`; `0` if not measured. |
+| Optional values | Pointer fields. Set them with `octaspace.Bool`, `octaspace.Int` or `octaspace.Price`, so that `false` and `0` can be sent too. |
 
 ## Compute
+
+Rent a machine and run your own container on it.
 
 ### List machines
 
 ```go
 machines, err := client.Compute.List(ctx)
 for _, m := range machines {
-	fmt.Println(m.NodeNumber, m.CPUCores, m.BasePrice, m.NetDownMbps)
+	fmt.Println(m.NodeNumber, m.City, m.CPUCores, m.BasePrice)
 }
 ```
 
-A `ComputeMachine` has its location, CPU, memory, disk, GPUs, network speed
-(`NetDownMbps` / `NetUpMbps`, Mbit/s), reliability and prices: `BasePrice` per
-hour, `StoragePrice` per GB of disk per hour, `TrafficPrice` per GB, and
-`MinRentMinutes`, the shortest time a session is billed for.
+A `ComputeMachine` has its location, CPU, memory, disk, GPUs, network speed,
+reliability and prices:
 
-The listing works without an API key, but is then refreshed only about once an
+| Field | Meaning |
+| --- | --- |
+| `BasePrice` | Per hour of rent |
+| `StoragePrice` | Per GB of disk per hour |
+| `TrafficPrice` | Per GB of traffic |
+| `MinRentMinutes` | Minimum rent, see below; `0` if none |
+
+> [!NOTE]
+> **Minimum rent.** If the node owner set a minimum rent, a session stopped
+> sooner is charged as if it ran that long. It is not charged if the node
+> fails.
+
+The listing also works without an API key, but is then refreshed about once an
 hour; with a key it is at most 10 seconds old.
 
 ### Start a session
@@ -40,13 +62,15 @@ uuid, err := client.Compute.Start(ctx, &octaspace.ComputeStartParams{
 ```
 
 `NodeNumber` and `Image` are required. Fields left zero are not sent and take
-the defaults listed in the `ComputeStartParams` reference. Use
-`octaspace.Bool(false)` to turn off SSH or the file manager that an app would
-enable.
+their defaults, listed in the
+[`ComputeStartParams` reference](https://pkg.go.dev/github.com/octaspace/go-sdk#ComputeStartParams).
+Use `octaspace.Bool(false)` to turn off SSH or the file manager that an
+application enables.
 
-`Start` returns as soon as the session is created; the container is still being
-set up. Wait for it with [`Sessions.WaitReady`](sessions.md#wait-until-ready).
-A rejected request returns a `*ValidationError` with the reason.
+`Start` returns as soon as the session is created, while its container is still
+being set up. Wait for it with
+[`Sessions.WaitReady`](sessions.md#wait-until-ready). A rejected request
+returns a `*ValidationError` with the reason.
 
 ### Start several sessions
 
@@ -69,19 +93,25 @@ Each item is checked on its own: one that fails does not stop the others.
 ### Restart a session
 
 ```go
-_, err := client.Compute.Restart(ctx, uuid, nil) // same parameters
+_, err := client.Compute.Restart(ctx, uuid, nil) // keep the parameters
 ```
 
-`Restart` recreates the container on the same node. With `nil` it keeps the
-parameters the session was started with. Parameters you pass **replace** the
-old ones as a whole, so include everything the session needs: `Args` without
-the `Entrypoint` they belong to, for example, can make the session stop.
+`Restart` recreates the container on the same node; the session keeps running.
+With `nil` the session restarts with the parameters it was started with.
 
-A session can be restarted once in 5 minutes. An earlier attempt returns a
-`*RateLimitError` whose `RetryAfter` says how long to wait; one made while the
-session is still starting returns a `*ConflictError`.
+> [!WARNING]
+> Parameters you pass **replace** the session's parameters as a whole; they
+> are not merged. Include everything the session needs. For example, `Args`
+> without the `Entrypoint` they belong to can make the session stop.
+
+| Error | When |
+| --- | --- |
+| `*ConflictError` | The session is already starting or restarting |
+| `*RateLimitError` | The session was restarted too recently; wait `RetryAfter` seconds. A session can be restarted once in 5 minutes and 6 times an hour |
 
 ## Render
+
+Rent a render node.
 
 ```go
 nodes, err := client.Render.List(ctx)
@@ -95,8 +125,8 @@ results, err := client.Render.StartBatch(ctx, []octaspace.RenderBatchItem{
 ```
 
 A `RenderMachine` is a node with an NVIDIA GPU, its Blender score and
-`BasePrice` per hour. The node renders for the account until the session is
-stopped.
+`BasePrice` per hour. The node renders for your account until you stop the
+session.
 
 ## Hosting
 
@@ -107,20 +137,32 @@ nodes, err := client.Hosting.Nodes(ctx)
 for _, n := range nodes {
 	fmt.Println(n.Number, n.Status, n.Prices.Base, n.UptimePercent)
 }
+```
 
-err = client.Hosting.SetPrices(ctx, "7KQ4-M2XD-4", octaspace.NodePrices{
+`Nodes` lists your nodes that are online, with their status (`NodeIdle`,
+`NodeRented`, …), the services they are offered for, prices, hardware,
+location and uptime.
+
+### Set prices
+
+```go
+err := client.Hosting.SetPrices(ctx, "7KQ4-M2XD-4", octaspace.NodePrices{
 	Base:           octaspace.Price(250_000), // $0.25 per hour
 	MinRentMinutes: octaspace.Int(15),
 })
 ```
 
-`Nodes` lists the nodes that are online, with their status (`NodeIdle`,
-`NodeRented`, ...), the services they are offered for, prices, hardware,
-location and uptime.
+Only the prices you set change.
 
-`SetPrices` changes only the prices you set; zero is a valid storage price and
-minimum rent. A value out of range returns a `*ValidationError`, an unknown node
-a `*NotFoundError`.
+| Field | Meaning | Range |
+| --- | --- | --- |
+| `Base` | Charged for every hour the node is rented | $0.0001 – $1000 |
+| `Storage` | Charged per hour for each GB of disk the renter allocates | $0 – $1000 |
+| `Traffic` | Per GB of traffic | $0.0001 – $1000 |
+| `MinRentMinutes` | Minimum rent of a compute session | 0 – 60 minutes; `0` turns it off |
+
+A value out of range returns a `*ValidationError`, an unknown node a
+`*NotFoundError`.
 
 ## Accounts
 
@@ -129,19 +171,21 @@ b, err := client.Accounts.Balance(ctx)
 fmt.Println(b.Balance) // $12.500000
 ```
 
-The balance already accounts for running sessions and is negative when they
-have used more than the account has. A recent charge or deposit can take a
-moment to appear.
+The balance already includes what running sessions have used and becomes
+negative when they use more than the account has. A recent charge or deposit
+can take a moment to appear.
 
 ## Network
+
+Platform statistics, updated every few minutes. No API key is needed.
 
 ```go
 info, err := client.Network.Info(ctx)
 fmt.Println(info.Nodes.Online, info.Sessions.Running, info.Time())
 ```
 
-Platform statistics: nodes, capacity, sessions, users, rendered frames and VPN
-relays, updated every few minutes. No API key is needed.
+`NetworkInfo` counts nodes, capacity, sessions, users, rendered frames and VPN
+relays.
 
 ## Stats
 
@@ -167,9 +211,8 @@ for _, p := range history["NVIDIA GeForce RTX 4090"].Points() {
 locations, err := client.Stats.GPULocations(ctx)
 ```
 
-- `GPUCurrent` gives, per GPU model, the number of GPUs (not nodes), how many are
-  rented, performance and price percentiles per GPU-hour. A percentile is `nil`
-  when there is no price.
-- `GPUHistory` gives the same over time. `Step` is at least 5 minutes, and a
-  range can have at most 2000 steps.
-- `GPULocations` gives the number of GPUs by city and model.
+| Method | Returns |
+| --- | --- |
+| `GPUCurrent` | Per GPU model: the number of GPUs (not nodes), how many are rented, performance, and price percentiles per GPU-hour. A percentile is `nil` when there is no price. |
+| `GPUHistory` | The same over time. `Step` is at least 5 minutes; a range has at most 2000 steps. |
+| `GPULocations` | The number of GPUs by city and model |
