@@ -1,25 +1,25 @@
-# Lossless raw JSON
+# Raw JSON responses
 
-Typed methods are the stable programming interface. Their models deliberately
-normalize inconsistent fields, so a typed decode followed by `json.Marshal`
-is not a lossless copy of a server response.
-
-Use resource-scoped raw methods for JSON passthrough, diagnostics, or when the
-server has added a field before the SDK models it:
+The typed methods are the recommended way to use the API. When you need the
+response exactly as the API sent it, for example to store it or to read a field
+the SDK does not have yet, use the `…Raw` variant:
 
 ```go
-machines, err := client.Compute.ListRaw(ctx)
-renderNodes, err := client.Render.ListRaw(ctx)
-sessions, err := client.Sessions.ListRaw(ctx)
-info, err := client.Sessions.GetRaw(ctx, uuid)
-nodes, err := client.Hosting.NodesRaw(ctx)
-network, err := client.Network.InfoRaw(ctx)
+body, err := client.Compute.ListRaw(ctx)
+if err != nil {
+	return err
+}
+os.Stdout.Write(body)
 ```
 
-Raw bodies are returned as the server sent them, including values the API
-sends as the string `"null"` (see [resources](resources.md#hosting)).
+| Method | Typed counterpart |
+| --- | --- |
+| `Compute.ListRaw` | `Compute.List` |
+| `Render.ListRaw` | `Render.List` |
+| `Sessions.ListRaw` | `Sessions.List` |
+| `Sessions.GetRaw` | `Sessions.Get` |
+| `Hosting.NodesRaw` | `Hosting.Nodes` |
+| `Network.InfoRaw` | `Network.Info` |
 
-Raw methods use the same authentication, timeout, retry, failover, error
-mapping, URL escaping, and structured query encoding as their typed GET
-counterparts. They return the exact response bytes after a successful HTTP
-status. There is intentionally no unrestricted `RawGet` method.
+Raw methods authenticate, retry and return errors the same way as the typed
+ones.

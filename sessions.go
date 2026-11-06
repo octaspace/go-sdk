@@ -111,8 +111,7 @@ type SessionNodeHW struct {
 	DiskSpeedMBS float64          `json:"disk_speed_mbs"`
 	GPUVendor    string           `json:"gpu_vendor"`
 	GPUs         []SessionNodeGPU `json:"gpus"`
-	// Network speed in Mbit/s; 0 if unknown (sessions started before the API
-	// reported it have none).
+	// Network speed in Mbit/s; 0 if unknown.
 	NetDownMbps int `json:"net_down_mbps"`
 	NetUpMbps   int `json:"net_up_mbps"`
 }

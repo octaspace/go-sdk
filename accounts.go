@@ -19,9 +19,8 @@ type AccountBalance struct {
 	Decimals int `json:"decimals"`
 }
 
-// Balance returns the available balance of the authenticated account. It is
-// read from a database replica, so a charge or a deposit may show up a moment
-// later.
+// Balance returns the available balance of the authenticated account. A recent
+// charge or deposit can take a moment to show up.
 //
 // GET /accounts/balance
 func (r *AccountsResource) Balance(ctx context.Context) (*AccountBalance, error) {

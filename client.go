@@ -1,4 +1,4 @@
-// Package octaspace is a Go client for the OctaSpace API (next generation).
+// Package octaspace is the Go client for the OctaSpace API.
 //
 // Basic usage:
 //
@@ -217,8 +217,8 @@ func newDefaultTransport() http.RoundTripper {
 
 // NewClient creates a new OctaSpace API client authenticated with apiKey.
 //
-// apiKey is an account API key (octa_ak_…), issued in Cube under
-// Profile → Credentials. It is sent as "Authorization: Bearer <apiKey>"; a key
+// apiKey is an account API key (octa_ak_…), created in the OctaSpace account
+// under Profile → Credentials. It is sent as "Authorization: Bearer <apiKey>"; a key
 // that already carries the "Bearer " prefix is accepted as well. Pass an empty
 // string to call only the public endpoints (e.g. Network.Info) anonymously.
 func NewClient(apiKey string, opts ...Option) *Client {

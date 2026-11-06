@@ -1,40 +1,61 @@
-# Errors and reliability
+# Errors, rate limits and retries
 
-All HTTP failures are typed. Use `errors.As` or the convenience helpers:
+## Error types
+
+An error response from the API is returned as one of these types. Each wraps
+`*APIError`, which has the HTTP status, the API's message, the request ID and
+rate limit details.
+
+| Type | Status | Helper |
+| --- | --- | --- |
+| `*ValidationError` | 400, 422 | `IsValidation` |
+| `*AuthenticationError` | 401 | `IsAuthError` |
+| `*PermissionError` | 403 | — |
+| `*NotFoundError` | 404 | `IsNotFound` |
+| `*ConflictError` | 409 | `IsConflict` |
+| `*RateLimitError` | 429 | `IsRateLimit` |
+| `*ServerError` | 5xx | — |
+
+When the API cannot be reached at all (DNS, connection or TLS failure), the
+error is a `*NetworkError`.
 
 ```go
-if octaspace.IsValidation(err) { /* 400, 422 */ }
-if octaspace.IsAuthError(err) { /* 401 */ }
-if octaspace.IsNotFound(err) { /* 404 */ }
-if octaspace.IsConflict(err) { /* 409 */ }
-if octaspace.IsRateLimit(err) { /* 429 */ }
+_, err := client.Compute.Start(ctx, params)
+
+var apiErr *octaspace.APIError
+if errors.As(err, &apiErr) {
+	log.Printf("status %d: %s (request %s)", apiErr.StatusCode, apiErr.Message, apiErr.RequestID)
+}
 ```
 
-`*APIError` exposes the HTTP status, request ID, retry-after seconds, the
-server message, and the rate limit state (`RateLimit`, see below). Subtypes
-include `ValidationError` (400/422, e.g. `Invalid session uuid`),
-`AuthenticationError`, `PermissionError`, `NotFoundError`, `ConflictError`
-(409, e.g. a session that is still starting or restarting), `RateLimitError`,
-and `ServerError`.
-`NetworkError` wraps DNS, TLS, connection, and similar transport failures.
+Include the request ID when you contact support about a failed call.
 
 ## Rate limits
 
-Every response carries `RateLimit-Limit`, `RateLimit-Remaining` and
-`RateLimit-Reset` (seconds). `client.RateLimit()` returns the state of the
-latest response; a failed call carries its own in `APIError.RateLimit`. The
-API keeps separate windows: 60 requests/min per IP without a key, 300 per
-account with one, and 10 per account for starting or restarting services.
+The API limits requests per minute: 60 per IP address without an API key, 300
+per account with one, and 10 per account for starting and restarting sessions.
 
-When a call is refused with 429, wait for `APIError.RetryAfter` seconds rather
-than `RateLimit.Reset`: a per-session cooldown (one restart per 5 minutes) can
-demand a longer wait than the window reset.
+`client.RateLimit()` returns the limit, the remaining requests and the seconds
+until the window resets, as of the latest response. A failed call carries the
+same in `APIError.RateLimit`.
+
+On a `*RateLimitError`, wait `RetryAfter` seconds before trying again:
+
+```go
+var rl *octaspace.RateLimitError
+if errors.As(err, &rl) {
+	time.Sleep(time.Duration(rl.RetryAfter) * time.Second)
+}
+```
 
 ## Retries
 
-GET requests retry HTTP 429/500/502/503/504 with bounded exponential backoff
-and jitter, honouring `Retry-After` up to 60 seconds; a longer `Retry-After`
-returns the `RateLimitError` at once instead of retrying a call that would be
-refused again. POST and PATCH are never retried or failed over automatically to
-avoid duplicate changes. Configure retry count with `WithMaxRetries`; configure
-the per-logical-call deadline with `WithTimeout`.
+GET requests are retried automatically on 429, 500, 502, 503 and 504, with
+exponential backoff and jitter, and honour `Retry-After` up to 60 seconds. When
+the API asks to wait longer, the `*RateLimitError` is returned at once.
+
+Requests that change something (starting, restarting and stopping sessions,
+setting prices) are never retried, so they cannot run twice.
+
+Set the number of retries with `WithMaxRetries` and the time limit of a call,
+retries included, with `WithTimeout`.
