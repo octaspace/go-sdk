@@ -24,13 +24,14 @@ The SDK follows the current OctaSpace API. Most resources changed; see the
 - `Bool` helper for optional `*bool` parameters.
 - `ConflictError` (HTTP 409), `IsConflict` and `IsValidation`.
 - `RateLimit`, available as `Client.RateLimit()` and `APIError.RateLimit`.
+- `DefaultBaseURL` constant.
 
 ### Changed
 
 - **Breaking:** the API key is sent as `Authorization: Bearer <key>`. A key
   that already has the `Bearer ` prefix is accepted.
 - **Breaking:** the default base URL is `https://api-dev.octa.space`
-  (`BaseURLDev`).
+  (`DefaultBaseURL`).
 - **Breaking:** `Session` is a new model shared by compute and render sessions,
   with `Service`, `Status`, `Progress`, `PullPercent`, `NodeNumber`, prices in
   `MicroUSD`, `SSH` and `NodeHW`. `Sessions.List` takes no parameters and

@@ -2,7 +2,7 @@
 //
 // Without OCTA_API_KEY — only public endpoints are called.
 // With OCTA_API_KEY    — the account's balance, sessions and nodes are shown too.
-// OCTA_API_URL overrides the base URL (default: octaspace.BaseURLDev).
+// OCTA_API_URL overrides the base URL (default: octaspace.DefaultBaseURL).
 //
 // Nothing is started or changed.
 //

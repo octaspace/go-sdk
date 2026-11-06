@@ -21,7 +21,7 @@ const (
 
 // integrationClient returns a client for the live API, or skips the test
 // unless OCTA_RUN_COMPUTE_INTEGRATION=1 and OCTA_API_KEY are set. OCTA_API_URL
-// overrides the base URL (default: BaseURLDev).
+// overrides the base URL (default: DefaultBaseURL).
 func integrationClient(t *testing.T) *Client {
 	t.Helper()
 	if os.Getenv(computeIntegrationFlag) != "1" {

@@ -40,11 +40,11 @@ import (
 // Version is the current SDK version, embedded in the default User-Agent header.
 const Version = "0.5.0"
 
-// BaseURLDev is the default base URL of the OctaSpace API.
-const BaseURLDev = "https://api-dev.octa.space"
+// DefaultBaseURL is the default base URL of the OctaSpace API.
+const DefaultBaseURL = "https://api-dev.octa.space"
 
 const (
-	defaultBaseURL    = BaseURLDev
+	defaultBaseURL    = DefaultBaseURL
 	defaultTimeout    = 30 * time.Second
 	defaultMaxRetries = 2
 )
@@ -107,7 +107,7 @@ type config struct {
 // Option is a functional option for configuring a [Client].
 type Option func(*config)
 
-// WithBaseURL overrides the API base URL (default: [BaseURLDev]).
+// WithBaseURL overrides the API base URL (default: [DefaultBaseURL]).
 // Equivalent to WithBaseURLs([]string{baseURL}).
 func WithBaseURL(baseURL string) Option {
 	return func(c *config) {
