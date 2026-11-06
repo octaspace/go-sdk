@@ -14,15 +14,14 @@ const (
 	// node named in OCTA_HOSTING_NODE.
 	hostingIntegrationFlag = "OCTA_RUN_HOSTING_INTEGRATION"
 	// priceVisibleTimeout bounds the wait for a new price to show in
-	// GET /hosting/nodes. The core updates its node record from the database
-	// through replication, normally within seconds.
+	// GET /hosting/nodes, which normally takes a few seconds.
 	priceVisibleTimeout = 30 * time.Second
 )
 
 // TestHostingSetPricesIntegration changes the traffic price of
 // OCTA_HOSTING_NODE by one micro-USD, waits until GET /hosting/nodes shows the
 // new value, and restores the original price. A 204 from the PATCH alone does
-// not prove the change took effect (API-NEXT-DIFF §0.2, 2026-11-02 incident).
+// not prove the change took effect.
 func TestHostingSetPricesIntegration(t *testing.T) {
 	if os.Getenv(hostingIntegrationFlag) != "1" {
 		t.Skipf("set %s=1 to run the live hosting test", hostingIntegrationFlag)

@@ -95,7 +95,7 @@ func TestCountResults(t *testing.T) {
 }
 
 func TestSmokePublicChecksDoNotRequireAuth(t *testing.T) {
-	// Endpoints the next API serves without a key (security: [] or optional).
+	// Endpoints the API serves without a key (security: [] or optional).
 	publicChecks := map[string]bool{
 		"network.info":        true,
 		"compute.list":        true,
