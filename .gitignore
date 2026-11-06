@@ -5,7 +5,3 @@
 *.out
 coverage.out
 dist/
-
-# Local AI agent instructions
-CLAUDE.md
-AGENTS.md
