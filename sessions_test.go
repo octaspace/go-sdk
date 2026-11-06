@@ -15,7 +15,7 @@ import (
 func TestSession_ReadyFixtureCoversEveryField(t *testing.T) {
 	var s Session
 	decodeStrict(t, "testdata/next/session_compute_ready.json", &s)
-	if !s.IsCompute() || !s.IsReady() || s.UUID == "" || s.NodeNumber != "M95S-WZG8-7" {
+	if !s.IsCompute() || !s.IsReady() || s.UUID == "" || s.NodeNumber != "7KQ4-M2XD-4" {
 		t.Errorf("session = %+v", s)
 	}
 	if s.BasePrice != 100 || s.StoragePrice != 100 || s.TrafficPrice != 100 || s.MinRentMinutes != 0 {
@@ -104,7 +104,7 @@ func TestSessions_List(t *testing.T) {
 		_, _ = w.Write([]byte("[" + string(fixture) + "]"))
 	})
 	got, err := c.Sessions.List(context.Background())
-	if err != nil || len(got) != 1 || got[0].NodeNumber != "M95S-WZG8-7" {
+	if err != nil || len(got) != 1 || got[0].NodeNumber != "7KQ4-M2XD-4" {
 		t.Fatalf("List = %+v, %v", got, err)
 	}
 }

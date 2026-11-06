@@ -71,15 +71,15 @@ func TestHosting_Nodes_ToleratesNullStrings(t *testing.T) {
 	}
 	var arc *HostingNode
 	for i := range nodes {
-		if nodes[i].Number == "WJFM-MYWR-9" {
+		if nodes[i].Number == "5NBT-C8VJ-2" {
 			arc = &nodes[i]
 		}
 	}
 	if arc == nil {
-		t.Fatal("WJFM-MYWR-9 not found")
+		t.Fatal("5NBT-C8VJ-2 not found")
 	}
 	gpu := arc.System.GPUs[0]
-	// WJFM-MYWR-9 reports these as the string "null".
+	// 5NBT-C8VJ-2 reports these as the string "null".
 	for _, k := range []string{"mem_clock", "power_limit", "fan_speed"} {
 		if v, ok := gpu[k]; !ok || v != nil {
 			t.Errorf("gpu[%q] = %#v, want nil", k, v)
