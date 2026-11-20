@@ -115,6 +115,23 @@ func TestClient_WithUserAgent(t *testing.T) {
 	}
 }
 
+func TestClient_WithApp(t *testing.T) {
+	var got []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = append(got, r.Header.Get(AppHeader))
+		jsonHandler(map[string]any{})(w, r)
+	}))
+	t.Cleanup(srv.Close)
+
+	NewClient("key", WithBaseURL(srv.URL), WithApp(" my-app ")).Network.Info(context.Background())
+	NewClient("key", WithBaseURL(srv.URL)).Network.Info(context.Background())
+	NewClient("key", WithBaseURL(srv.URL), WithApp(" ")).Network.Info(context.Background())
+	want := []string{"my-app", DefaultApp, DefaultApp}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("%s = %q, want %q", AppHeader, got, want)
+	}
+}
+
 func TestClient_WithTimeout(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(200 * time.Millisecond)

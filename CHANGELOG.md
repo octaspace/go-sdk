@@ -25,6 +25,9 @@ The SDK follows the current OctaSpace API. Most resources changed; see the
 - `ConflictError` (HTTP 409), `IsConflict` and `IsValidation`.
 - `RateLimit`, available as `Client.RateLimit()` and `APIError.RateLimit`.
 - `DefaultBaseURL` constant.
+- Every request carries the `X-OCTA-APP` header (`AppHeader`), `go-sdk` by
+  default (`DefaultApp`); the `WithApp` option names the calling application
+  instead.
 
 ### Changed
 

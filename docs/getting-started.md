@@ -16,6 +16,7 @@ client := octaspace.NewClient(os.Getenv("OCTA_API_KEY"),
 	octaspace.WithTimeout(15*time.Second),
 	octaspace.WithMaxRetries(3),
 	octaspace.WithUserAgent("my-service/1.0"),
+	octaspace.WithApp("my-service"),
 	octaspace.WithLogger(octaspace.NewStdLogger(log.Default())),
 )
 ```
@@ -27,6 +28,7 @@ client := octaspace.NewClient(os.Getenv("OCTA_API_KEY"),
 | `WithTimeout(d)` | `30s` | Time limit for one method call, retries included |
 | `WithMaxRetries(n)` | `2` | Retries of failed GET requests; `0` turns them off |
 | `WithUserAgent(ua)` | `octaspace-go/<version>` | Value of the `User-Agent` header |
+| `WithApp(name)` | `go-sdk` | Names your application in the `X-OCTA-APP` header (`AppHeader`) |
 | `WithLogger(l)` | none | Logs the method, path, status and duration of each request |
 | `WithHTTPClient(hc)` | tuned `http.Client` | Your own client, for example for a proxy or tracing |
 | `WithBaseURL(url)` | `DefaultBaseURL` | Another API host |

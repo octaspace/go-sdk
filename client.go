@@ -99,6 +99,7 @@ type config struct {
 	maxRetries int
 	logger     Logger
 	userAgent  string
+	app        string // AppHeader value
 
 	rateMu   sync.Mutex
 	lastRate *RateLimit // last RateLimit-* state seen on a response
@@ -194,6 +195,22 @@ func WithUserAgent(ua string) Option {
 	return func(c *config) { c.userAgent = ua }
 }
 
+// AppHeader is the request header that names the application calling the API.
+const AppHeader = "X-OCTA-APP"
+
+// DefaultApp is the [AppHeader] value of a client without [WithApp].
+const DefaultApp = "go-sdk"
+
+// WithApp names the application that calls the API in the [AppHeader] header
+// of every request (default: [DefaultApp]). An empty name keeps the default.
+func WithApp(name string) Option {
+	return func(c *config) {
+		if name = strings.TrimSpace(name); name != "" {
+			c.app = name
+		}
+	}
+}
+
 // Client is an authenticated HTTP client for the OctaSpace API.
 // It is safe for concurrent use. Create one with [NewClient].
 type Client struct {
@@ -234,6 +251,7 @@ func NewClient(apiKey string, opts ...Option) *Client {
 		timeout:    defaultTimeout,
 		maxRetries: defaultMaxRetries,
 		userAgent:  "octaspace-go/" + Version,
+		app:        DefaultApp,
 	}
 	for _, opt := range opts {
 		opt(cfg)
@@ -277,6 +295,7 @@ func normalizeAPIKey(key string) string {
 func (c *Client) setHeaders(req *http.Request, accept string) {
 	req.Header.Set("User-Agent", c.cfg.userAgent)
 	req.Header.Set("Accept", accept)
+	req.Header.Set(AppHeader, c.cfg.app)
 	if c.cfg.apiKey != "" {
 		req.Header.Set("Authorization", bearerPrefix+c.cfg.apiKey)
 	}
