@@ -41,7 +41,7 @@ import (
 const Version = "0.5.0"
 
 // DefaultBaseURL is the default base URL of the OctaSpace API.
-const DefaultBaseURL = "https://api-dev.octa.space"
+const DefaultBaseURL = "https://api.octa.space"
 
 const (
 	defaultBaseURL    = DefaultBaseURL
@@ -130,7 +130,7 @@ func WithBaseURL(baseURL string) Option {
 //
 //	client := octaspace.NewClient(apiKey,
 //	    octaspace.WithBaseURLs([]string{
-//	        "https://api-dev.octa.space",
+//	        "https://api.octa.space",
 //	        "https://api-backup.example.com",
 //	    }),
 //	)
@@ -235,7 +235,7 @@ func newDefaultTransport() http.RoundTripper {
 // NewClient creates a new OctaSpace API client authenticated with apiKey.
 //
 // apiKey is an API key of your OctaSpace account (octa_ak_…). Create one in
-// the OctaSpace dashboard (https://cube-dev.octa.space) under
+// the OctaSpace dashboard (https://console.octa.space) under
 // Account → Credentials → API Keys; it is shown in full only once. The key is
 // sent as "Authorization: Bearer <apiKey>"; a key that already carries the
 // "Bearer " prefix is accepted as well.

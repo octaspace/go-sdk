@@ -33,7 +33,7 @@ The SDK follows the current OctaSpace API. Most resources changed; see the
 
 - **Breaking:** the API key is sent as `Authorization: Bearer <key>`. A key
   that already has the `Bearer ` prefix is accepted.
-- **Breaking:** the default base URL is `https://api-dev.octa.space`
+- **Breaking:** the default base URL is `https://api.octa.space`
   (`DefaultBaseURL`).
 - **Breaking:** `Session` is a new model shared by compute and render sessions,
   with `Service`, `Status`, `Progress`, `PullPercent`, `NodeNumber`, prices in
