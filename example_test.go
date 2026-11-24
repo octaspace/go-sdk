@@ -196,6 +196,20 @@ func ExampleComputeResource_Start() {
 	fmt.Println("started", uuid)
 }
 
+// ExampleHostingResource_SetMaintenance takes a hosted node off rent and
+// offers it again.
+func ExampleHostingResource_SetMaintenance() {
+	client := octaspace.NewClient(os.Getenv("OCTA_API_KEY"))
+	ctx := context.Background()
+	if err := client.Hosting.SetMaintenance(ctx, "7KQ4-M2XD-4", true); err != nil {
+		log.Fatal(err)
+	}
+	// ... work on the machine ...
+	if err := client.Hosting.SetMaintenance(ctx, "7KQ4-M2XD-4", false); err != nil {
+		log.Fatal(err)
+	}
+}
+
 // ExampleHostingResource_SetPrices changes the base price and the minimum
 // rent of a hosted node; the other prices stay as they are.
 func ExampleHostingResource_SetPrices() {

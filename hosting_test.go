@@ -129,6 +129,38 @@ func TestHosting_SetPrices(t *testing.T) {
 	}
 }
 
+func TestHosting_SetMaintenance(t *testing.T) {
+	for _, tc := range []struct {
+		on     bool
+		method string
+	}{
+		{true, http.MethodPut},
+		{false, http.MethodDelete},
+	} {
+		var method, path string
+		var body []byte
+		c, _ := newTestClient(t, captureBody(t, &method, &path, &body, http.StatusNoContent, ""))
+		if err := c.Hosting.SetMaintenance(context.Background(), "7kq4 m2xd/4", tc.on); err != nil {
+			t.Fatalf("SetMaintenance(%v): %v", tc.on, err)
+		}
+		if method != tc.method || path != "/hosting/nodes/7kq4%20m2xd%2F4/maintenance" {
+			t.Errorf("SetMaintenance(%v): request = %s %s", tc.on, method, path)
+		}
+		if len(body) != 0 {
+			t.Errorf("SetMaintenance(%v): body = %q, want none", tc.on, body)
+		}
+	}
+
+	c, _ := newTestClient(t, statusHandler(500, ""))
+	if err := c.Hosting.SetMaintenance(context.Background(), "", true); err == nil {
+		t.Error("empty node number should be rejected before the request")
+	}
+	c404, _ := newTestClient(t, statusHandler(404, `{"message":"Node not found"}`))
+	if err := c404.Hosting.SetMaintenance(context.Background(), "0000-0000-0", true); !IsNotFound(err) {
+		t.Errorf("err = %v, want NotFoundError", err)
+	}
+}
+
 func TestDecodeNullTolerant(t *testing.T) {
 	var got struct {
 		A *int            `json:"a"`

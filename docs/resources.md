@@ -130,7 +130,7 @@ session.
 
 ## Hosting
 
-The nodes you host and their prices.
+The nodes you host, their prices and maintenance.
 
 ```go
 nodes, err := client.Hosting.Nodes(ctx)
@@ -162,6 +162,19 @@ Only the prices you set change.
 | `MinRentMinutes` | Minimum rent of a compute session | 0 – 60 minutes; `0` turns it off |
 
 A value out of range returns a `*ValidationError`, an unknown node a
+`*NotFoundError`.
+
+### Maintenance
+
+```go
+err := client.Hosting.SetMaintenance(ctx, "7KQ4-M2XD-4", true)  // take the node off rent
+err = client.Hosting.SetMaintenance(ctx, "7KQ4-M2XD-4", false)  // offer it again
+```
+
+In maintenance the node is not offered for new rentals until you take it
+out; sessions already running go on and their renters are notified.
+`Nodes` reports it as `Maintenance`. It works for a node that is offline
+too, and repeating a call changes nothing. An unknown node returns a
 `*NotFoundError`.
 
 ## Accounts

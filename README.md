@@ -139,7 +139,7 @@ See [Errors, rate limits and retries](docs/errors-and-reliability.md).
 | `client.Compute` | Marketplace → Compute | List machines, start, batch start, restart | [Compute](docs/resources.md#compute) |
 | `client.Render` | Render → Launch Nodes | List render nodes, start, batch start | [Render](docs/resources.md#render) |
 | `client.Sessions` | Marketplace → Sessions, Render → Render Nodes | List, get, logs, stop, wait until ready | [Sessions](docs/sessions.md) |
-| `client.Hosting` | Hosting → Nodes | Your nodes, set prices | [Hosting](docs/resources.md#hosting) |
+| `client.Hosting` | Hosting → Nodes | Your nodes, set prices and maintenance | [Hosting](docs/resources.md#hosting) |
 | `client.Accounts` | Account → Billing | Balance | [Accounts](docs/resources.md#accounts) |
 | `client.Network` | — | Platform statistics | [Network](docs/resources.md#network) |
 | `client.Stats` | — | GPU market: current, history, locations | [Stats](docs/resources.md#stats) |

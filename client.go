@@ -352,6 +352,22 @@ func (c *Client) patch(ctx context.Context, path string, body, dst any) error {
 	return c.doNoFailover(ctx, http.MethodPatch, path, nil, body, dst)
 }
 
+// put performs a PUT request. Arguments work the same as post.
+// PUT is never retried or failed-over automatically.
+func (c *Client) put(ctx context.Context, path string, body, dst any) error {
+	ctx, cancel := c.timeoutCtx(ctx)
+	defer cancel()
+	return c.doNoFailover(ctx, http.MethodPut, path, nil, body, dst)
+}
+
+// delete performs a DELETE request and decodes the response into dst (if
+// non-nil). DELETE is never retried or failed-over automatically.
+func (c *Client) delete(ctx context.Context, path string, dst any) error {
+	ctx, cancel := c.timeoutCtx(ctx)
+	defer cancel()
+	return c.doNoFailover(ctx, http.MethodDelete, path, nil, nil, dst)
+}
+
 // getRaw performs a GET request and returns the raw response body bytes without
 // JSON decoding. Used for binary responses (logs, ident files).
 // Retries transient failures and fails over to backup hosts on network errors.

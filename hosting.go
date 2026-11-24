@@ -28,7 +28,8 @@ type HostingNode struct {
 	Status string `json:"status"` // NodeIdle, NodeRented, ...
 	// Activity is the check the node is busy with; nil when there is none.
 	Activity *NodeActivity `json:"activity"`
-	// Maintenance reports that the node is in maintenance and not offered.
+	// Maintenance reports that the node is in maintenance and not offered;
+	// see [HostingResource.SetMaintenance].
 	Maintenance bool `json:"maintenance"`
 	// Verified reports whether the node passed verification; nil when not
 	// known yet.
@@ -154,4 +155,28 @@ func (r *HostingResource) SetPrices(ctx context.Context, number string, prices N
 		return errors.New("octaspace: set at least one price")
 	}
 	return r.c.patch(ctx, "/hosting/nodes/"+url.PathEscape(number)+"/prices", prices, nil)
+}
+
+// SetMaintenance puts a node of the account in maintenance (on = true) or
+// takes it out (on = false). In maintenance the node is not offered for new
+// rentals until it is taken out; sessions already running go on and their
+// renters are notified. It works for a node that is offline too, and setting
+// the state the node already has changes nothing. A maintenance period or
+// description set in the OctaSpace dashboard is dropped either way.
+//
+// The node is identified by its number (case, dashes and spaces are
+// ignored). An unknown node is a [*NotFoundError]. SetMaintenance is never
+// retried automatically.
+//
+// PUT /hosting/nodes/{number}/maintenance (on),
+// DELETE /hosting/nodes/{number}/maintenance (off)
+func (r *HostingResource) SetMaintenance(ctx context.Context, number string, on bool) error {
+	if number == "" {
+		return errors.New("octaspace: node number is required")
+	}
+	path := "/hosting/nodes/" + url.PathEscape(number) + "/maintenance"
+	if on {
+		return r.c.put(ctx, path, nil, nil)
+	}
+	return r.c.delete(ctx, path, nil)
 }

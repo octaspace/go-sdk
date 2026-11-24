@@ -14,8 +14,8 @@ The SDK follows the current OctaSpace API. Most resources changed; see the
 
 - `client.Compute`: `List`, `ListRaw`, `Start`, `StartBatch` and `Restart`.
 - `client.Render`: `List`, `ListRaw`, `Start` and `StartBatch`.
-- `client.Hosting`: `Nodes`, `NodesRaw` and `SetPrices`, with the `Price` and
-  `Int` helpers.
+- `client.Hosting`: `Nodes`, `NodesRaw`, `SetPrices` and `SetMaintenance`,
+  with the `Price` and `Int` helpers.
 - `client.Stats`: `GPUCurrent`, `GPUHistory` and `GPULocations`.
 - `Sessions.Get`, `GetRaw`, `Logs`, `Stop` and `WaitReady`, with
   `ErrSessionStopped`.
