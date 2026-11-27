@@ -35,11 +35,13 @@ type NetworkNodes struct {
 
 // NetworkPower is the capacity of the online nodes.
 type NetworkPower struct {
-	CPUCores int     `json:"cpu_cores"`
-	Memory   int64   `json:"memory"` // bytes
-	Disk     int64   `json:"disk"`   // bytes
-	GPUs     int     `json:"gpus"`
-	TFLOPS   float64 `json:"tflops"`
+	CPUCores int   `json:"cpu_cores"`
+	Memory   int64 `json:"memory"` // bytes
+	Disk     int64 `json:"disk"`   // bytes
+	GPUs     int   `json:"gpus"`
+	// GPUsRented are the GPUs of rented nodes; nil if unknown.
+	GPUsRented *int    `json:"gpus_rented"`
+	TFLOPS     float64 `json:"tflops"`
 }
 
 // NetworkSessions counts service sessions.
@@ -79,7 +81,7 @@ type NetworkVPN struct {
 // GET /network
 func (r *NetworkResource) Info(ctx context.Context) (*NetworkInfo, error) {
 	var info NetworkInfo
-	if err := r.c.get(ctx, "/network", nil, &info); err != nil {
+	if err := r.c.getNullTolerant(ctx, "/network", nil, &info); err != nil {
 		return nil, err
 	}
 	return &info, nil

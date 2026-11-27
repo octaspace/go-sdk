@@ -63,8 +63,13 @@ type NodeActivity struct {
 // ServiceOffer tells whether a node is offered for a service.
 type ServiceOffer struct {
 	Offered bool `json:"offered"`
-	// Reason says why it is not offered, e.g. "ports_closed".
+	// Reason says why it is not offered, e.g. "ports_closed" or
+	// "vpn_probe_failed".
 	Reason string `json:"reason"`
+	// Details is what the check found, for the owner.
+	Details string `json:"details,omitempty"`
+	// Protocols is the offer of each VPN protocol, for the vpn service only.
+	Protocols map[string]ServiceOffer `json:"protocols,omitempty"`
 }
 
 // NodePriceList are the current prices of a hosted node.
@@ -117,6 +122,31 @@ func (r *HostingResource) Nodes(ctx context.Context) ([]HostingNode, error) {
 // NodesRaw returns the raw JSON of GET /hosting/nodes.
 func (r *HostingResource) NodesRaw(ctx context.Context) ([]byte, error) {
 	return r.c.getRaw(ctx, "/hosting/nodes")
+}
+
+// Get returns one online node of the account; case, dashes and spaces in the
+// number are ignored. A node that is offline, does not exist or belongs to
+// another account is a [*NotFoundError]; a malformed number a
+// [*ValidationError].
+//
+// GET /hosting/nodes/{number}
+func (r *HostingResource) Get(ctx context.Context, number string) (*HostingNode, error) {
+	if number == "" {
+		return nil, errors.New("octaspace: node number is required")
+	}
+	var node HostingNode
+	if err := r.c.getNullTolerant(ctx, "/hosting/nodes/"+url.PathEscape(number), nil, &node); err != nil {
+		return nil, err
+	}
+	return &node, nil
+}
+
+// GetRaw returns the raw JSON of GET /hosting/nodes/{number}.
+func (r *HostingResource) GetRaw(ctx context.Context, number string) ([]byte, error) {
+	if number == "" {
+		return nil, errors.New("octaspace: node number is required")
+	}
+	return r.c.getRaw(ctx, "/hosting/nodes/"+url.PathEscape(number))
 }
 
 // NodePrices sets the prices of a node; nil fields stay as they are, and at

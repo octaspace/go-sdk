@@ -15,8 +15,17 @@ type ComputeMachine struct {
 	// check symbol, e.g. "7KQ4-M2XD-4". Pass it to [ComputeResource.Start].
 	NodeNumber string `json:"node_number"`
 
-	City    string `json:"city"`
-	Country string `json:"country"` // empty if unknown
+	City       string `json:"city"`
+	Country    string `json:"country"`     // empty if unknown
+	CountryISO string `json:"country_iso"` // ISO 3166-1 alpha-2; empty if unknown
+
+	// OSVersion is the operating system of the node, e.g. "Ubuntu 24.04";
+	// empty if unknown.
+	OSVersion string `json:"os_version"`
+	Virt      string `json:"virt"`       // virtualization the node runs in; "none" on bare metal
+	IsWSL     bool   `json:"is_wsl"`     // the node runs in WSL
+	IsHiveOS  bool   `json:"is_hive_os"` // the node runs HiveOS
+	GPUPT     bool   `json:"gpu_pt"`     // GPU passthrough is available
 
 	Arch         string `json:"arch"` // "x86_64" or "aarch64"
 	CPUModelName string `json:"cpu_model_name"`

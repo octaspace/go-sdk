@@ -217,6 +217,7 @@ type Client struct {
 	cfg      *config
 	Compute  *ComputeResource
 	Render   *RenderResource
+	VPN      *VPNResource
 	Sessions *SessionsResource
 	Hosting  *HostingResource
 	Accounts *AccountsResource
@@ -259,6 +260,7 @@ func NewClient(apiKey string, opts ...Option) *Client {
 	c := &Client{cfg: cfg}
 	c.Compute = &ComputeResource{c}
 	c.Render = &RenderResource{c}
+	c.VPN = &VPNResource{c}
 	c.Sessions = &SessionsResource{c}
 	c.Hosting = &HostingResource{c}
 	c.Accounts = &AccountsResource{c}
