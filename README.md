@@ -105,9 +105,10 @@ These methods also work without an API key. Pass an empty string to
 
 | Method | Without a key |
 | --- | --- |
-| `Network.Info` | Same result |
-| `Stats.GPUCurrent`, `Stats.GPUHistory`, `Stats.GPULocations` | Same result |
-| `Compute.List`, `Render.List` | Refreshed about once an hour instead of every 10 seconds |
+| `Network.Info`, `Network.History` | Same result |
+| `Stats.GPUCurrent`, `Stats.GPUHistory`, `Stats.GPULocations`, `Stats.Mining` | Same result |
+| `Compute.List`, `Render.List`, `VPN.List` | Refreshed about once an hour instead of every 10 seconds |
+| `Compute.Apps` | Official apps only, without your own |
 
 Every other method requires an API key and returns an `*AuthenticationError`
 without one.
@@ -136,13 +137,14 @@ See [Errors, rate limits and retries](docs/errors-and-reliability.md).
 
 | Resource | Dashboard section | Operations | Guide |
 | --- | --- | --- | --- |
-| `client.Compute` | Marketplace → Compute | List machines, start, batch start, restart | [Compute](docs/resources.md#compute) |
+| `client.Compute` | Marketplace → Compute, Applications | List machines and apps, start, batch start, restart | [Compute](docs/resources.md#compute) |
 | `client.Render` | Render → Launch Nodes | List render nodes, start, batch start | [Render](docs/resources.md#render) |
-| `client.Sessions` | Marketplace → Sessions, Render → Render Nodes | List, get, logs, stop, wait until ready | [Sessions](docs/sessions.md) |
-| `client.Hosting` | Hosting → Nodes | Your nodes, set prices and maintenance | [Hosting](docs/resources.md#hosting) |
+| `client.VPN` | Marketplace → VPN | List VPN nodes, start | [VPN](docs/resources.md#vpn) |
+| `client.Sessions` | Marketplace → Sessions, Render → Render Nodes | List, get, logs, stop, wait until ready or stopped | [Sessions](docs/sessions.md) |
+| `client.Hosting` | Hosting → Nodes | Your nodes, one node, set prices and maintenance | [Hosting](docs/resources.md#hosting) |
 | `client.Accounts` | Account → Billing | Balance | [Accounts](docs/resources.md#accounts) |
-| `client.Network` | — | Platform statistics | [Network](docs/resources.md#network) |
-| `client.Stats` | — | GPU market: current, history, locations | [Stats](docs/resources.md#stats) |
+| `client.Network` | — | Platform statistics now and over time | [Network](docs/resources.md#network) |
+| `client.Stats` | — | GPU market: current, history, locations; mining | [Stats](docs/resources.md#stats) |
 
 Every type and method is documented on
 [pkg.go.dev](https://pkg.go.dev/github.com/octaspace/go-sdk).
@@ -152,7 +154,7 @@ Every type and method is documented on
 | Guide | Covers |
 | --- | --- |
 | [Client configuration](docs/getting-started.md) | Options and defaults, context, logging, custom HTTP client |
-| [Resources](docs/resources.md) | Compute, render, hosting, balance, network and GPU statistics |
+| [Resources](docs/resources.md) | Compute, render, VPN, hosting, balance, network and GPU statistics |
 | [Sessions](docs/sessions.md) | Waiting until ready, connecting, logs, stopping |
 | [Errors, rate limits and retries](docs/errors-and-reliability.md) | Error types, limits, automatic retries |
 | [Raw JSON responses](docs/raw-json.md) | Responses exactly as the API sent them |

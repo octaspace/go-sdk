@@ -17,11 +17,16 @@ os.Stdout.Write(body)
 | Method | Typed counterpart |
 | --- | --- |
 | `Compute.ListRaw` | `Compute.List` |
+| `Compute.AppsRaw` | `Compute.Apps` |
 | `Render.ListRaw` | `Render.List` |
+| `VPN.ListRaw` | `VPN.List` |
 | `Sessions.ListRaw` | `Sessions.List` |
 | `Sessions.GetRaw` | `Sessions.Get` |
 | `Hosting.NodesRaw` | `Hosting.Nodes` |
+| `Hosting.GetRaw` | `Hosting.Get` |
 | `Network.InfoRaw` | `Network.Info` |
+| `Network.HistoryRaw` | `Network.History` |
+| `Stats.MiningRaw` | `Stats.Mining` |
 
 Raw methods authenticate, retry and return errors the same way as the typed
 ones.

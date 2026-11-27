@@ -6,16 +6,18 @@
 [Wait until ready](#wait-until-ready) · [Connect](#connect) · [Logs](#logs) ·
 [Stop](#stop) · [Session fields](#session-fields)
 
-`client.Sessions` works with your running sessions, both compute and render.
+`client.Sessions` works with your running sessions: compute, render and VPN.
 They share the `Session` type; `Service` tells them apart
-(`octaspace.ServiceCompute`, `octaspace.ServiceRender`).
+(`octaspace.ServiceCompute`, `octaspace.ServiceRender`, `octaspace.ServiceVPN`,
+or `IsCompute()`, `IsRender()`, `IsVPN()`). A ready VPN session has its
+`Subkind` and the `Config` the client connects with; see [VPN](resources.md#vpn).
 
 ## Lifecycle
 
 ```text
-Compute.Start / Render.Start ──► starting ──► ready ──► Sessions.Stop
-                                    ▲           │
-                                    └─ Restart ─┘
+Compute.Start / Render.Start / VPN.Start ──► starting ──► ready ──► Sessions.Stop
+                                                ▲           │
+                                                └─ Restart ─┘
 ```
 
 | `Status` | Meaning |
@@ -90,16 +92,20 @@ for _, e := range logs.System {
 | `ContainerTruncated` | `true` if the output was cut to its last 1 MiB |
 | `System` | Platform events of the session, oldest first |
 
-Logs are available for running compute sessions.
+Logs are available for running compute sessions. For a render or VPN session
+`Logs` returns a `*NotFoundError`, although the session is running.
 
 ## Stop
 
 ```go
 _, err := client.Sessions.Stop(ctx, uuid)
+err = client.Sessions.WaitStopped(ctx, uuid, nil)
 ```
 
 Stopping takes a few seconds, during which `Get` can still return the session;
-after that it returns a `*NotFoundError`. Stopping a session twice is safe.
+after that it returns a `*NotFoundError`. `WaitStopped` returns once the
+session is gone; bound it with a context deadline. Stopping a session twice is
+safe.
 
 > [!NOTE]
 > A session stopped before its minimum rent (`MinRentMinutes`) is charged as
