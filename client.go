@@ -38,7 +38,7 @@ import (
 )
 
 // Version is the current SDK version, embedded in the default User-Agent header.
-const Version = "0.5.0"
+const Version = "0.6.0"
 
 // DefaultBaseURL is the default base URL of the OctaSpace API.
 const DefaultBaseURL = "https://api.octa.space"
@@ -217,6 +217,7 @@ type Client struct {
 	cfg      *config
 	Compute  *ComputeResource
 	Render   *RenderResource
+	VPN      *VPNResource
 	Sessions *SessionsResource
 	Hosting  *HostingResource
 	Accounts *AccountsResource
@@ -259,6 +260,7 @@ func NewClient(apiKey string, opts ...Option) *Client {
 	c := &Client{cfg: cfg}
 	c.Compute = &ComputeResource{c}
 	c.Render = &RenderResource{c}
+	c.VPN = &VPNResource{c}
 	c.Sessions = &SessionsResource{c}
 	c.Hosting = &HostingResource{c}
 	c.Accounts = &AccountsResource{c}

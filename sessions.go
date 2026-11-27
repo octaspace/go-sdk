@@ -2,6 +2,7 @@ package octaspace
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -14,6 +15,7 @@ import (
 const (
 	ServiceCompute = "compute"
 	ServiceRender  = "render"
+	ServiceVPN     = "vpn"
 )
 
 // Session statuses reported in [Session.Status].
@@ -23,13 +25,13 @@ const (
 )
 
 // Session is a running service session, as returned by GET /sessions and
-// GET /services/{uuid}/info. Compute and render sessions share this type and
-// are told apart by Service; the compute-only fields stay zero for render.
+// GET /services/{uuid}/info. Compute, render and VPN sessions share this
+// type and are told apart by Service; fields of another service stay zero.
 //
 // Many fields are unknown (zero or nil) while Status is [SessionStarting].
 type Session struct {
 	UUID    string `json:"uuid"`
-	Service string `json:"service"` // [ServiceCompute] or [ServiceRender]
+	Service string `json:"service"` // [ServiceCompute], [ServiceRender] or [ServiceVPN]
 	Status  string `json:"status"`  // [SessionStarting] or [SessionReady]
 
 	// Progress is the current configuration step, e.g. "Service configured".
@@ -54,22 +56,77 @@ type Session struct {
 
 	NodeHW *SessionNodeHW `json:"node_hw"` // node hardware at start; nil while starting
 
+	// Compute and VPN. For VPN, PublicIP is the exit address.
+	City       string `json:"city"`
+	Country    string `json:"country"`
+	CountryISO string `json:"country_iso"`
+	PublicIP   string `json:"public_ip"`
+	RX         int64  `json:"rx"` // bytes received
+	TX         int64  `json:"tx"` // bytes sent
+
+	// VPN only. Subkind is the protocol, e.g. [VPNWireGuard]. Config is what
+	// the client connects with; nil until the session is ready. It is a
+	// credential (a WireGuard config holds the private key, a proxy's has its
+	// password): do not log it.
+	Subkind string     `json:"subkind"`
+	Config  *VPNConfig `json:"config"`
+
 	// Compute only.
-	City       string            `json:"city"`
-	Country    string            `json:"country"`
-	CountryISO string            `json:"country_iso"`
-	PublicIP   string            `json:"public_ip"`
-	Ports      map[string]int    `json:"ports"` // container port => public port on the node
-	URLs       map[string]string `json:"urls"`  // HTTP port => public URL
-	SSH        SessionSSH        `json:"ssh"`
-	FM         string            `json:"fm"` // web file manager URL; empty if not running
-	Envs       map[string]string `json:"envs"`
-	RX         int64             `json:"rx"` // bytes received
-	TX         int64             `json:"tx"` // bytes sent
+	Ports map[string]int    `json:"ports"` // container port => public port on the node
+	URLs  map[string]string `json:"urls"`  // HTTP port => public URL
+	SSH   SessionSSH        `json:"ssh"`
+	FM    string            `json:"fm"` // web file manager URL; empty if not running
+	Envs  map[string]string `json:"envs"`
+}
+
+// VPNConfig is what the client of a VPN session connects with: Text for
+// [VPNWireGuard] and [VPNAmneziaWG] (a config file) and [VPNReality] (a
+// link), HTTPProxy for [VPNHTTPProxy].
+type VPNConfig struct {
+	Text      string
+	HTTPProxy *HTTPProxyConfig
+}
+
+// HTTPProxyConfig is the address of an HTTP proxy and its login (HTTP Basic,
+// valid for the session). The proxy lets in only the IP address the start
+// request came from.
+type HTTPProxyConfig struct {
+	IP       string `json:"ip"`
+	Port     int    `json:"port"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+// UnmarshalJSON decodes a config given as a string or as a proxy object.
+func (c *VPNConfig) UnmarshalJSON(data []byte) error {
+	*c = VPNConfig{}
+	if len(data) > 0 && data[0] == '"' {
+		return json.Unmarshal(data, &c.Text)
+	}
+	var proxy HTTPProxyConfig
+	if err := json.Unmarshal(data, &proxy); err != nil {
+		return err
+	}
+	c.HTTPProxy = &proxy
+	return nil
+}
+
+// MarshalJSON encodes the config in the form the API sends it.
+func (c VPNConfig) MarshalJSON() ([]byte, error) {
+	if c.HTTPProxy != nil {
+		return json.Marshal(c.HTTPProxy)
+	}
+	return json.Marshal(c.Text)
 }
 
 // IsCompute reports whether s is a compute session.
 func (s *Session) IsCompute() bool { return s.Service == ServiceCompute }
+
+// IsRender reports whether s is a render session.
+func (s *Session) IsRender() bool { return s.Service == ServiceRender }
+
+// IsVPN reports whether s is a VPN session.
+func (s *Session) IsVPN() bool { return s.Service == ServiceVPN }
 
 // IsReady reports whether the session has finished configuring.
 func (s *Session) IsReady() bool { return s.Status == SessionReady }
@@ -286,6 +343,33 @@ func (r *SessionsResource) WaitReady(ctx context.Context, uuid string, opts *Wai
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
+// WaitStopped polls the session until it is gone, i.e. until Get returns a
+// [*NotFoundError], and returns nil; at once for a session that is already
+// gone. It returns the context's error when ctx is done. Only
+// [WaitOptions.Interval] applies.
+func (r *SessionsResource) WaitStopped(ctx context.Context, uuid string, opts *WaitOptions) error {
+	interval := defaultWaitInterval
+	if opts != nil && opts.Interval > 0 {
+		interval = opts.Interval
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		_, err := r.Get(ctx, uuid)
+		switch {
+		case IsNotFound(err):
+			return nil
+		case err != nil:
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
 		case <-ticker.C:
 		}
 	}

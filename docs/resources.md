@@ -3,7 +3,7 @@
 [← Back to README](../README.md)
 
 **On this page:** [Conventions](#conventions) · [Compute](#compute) ·
-[Render](#render) · [Hosting](#hosting) · [Accounts](#accounts) ·
+[Render](#render) · [VPN](#vpn) · [Hosting](#hosting) · [Accounts](#accounts) ·
 [Network](#network) · [Stats](#stats)
 
 Sessions have [their own guide](sessions.md).
@@ -47,6 +47,34 @@ reliability and prices:
 
 The listing also works without an API key, but is then refreshed about once an
 hour; with a key it is at most 10 seconds old.
+
+### Apps
+
+An app is a ready-made image with its settings. `Compute.Apps` lists the
+official apps and, with an API key, your own (`Personal`):
+
+```go
+apps, err := client.Compute.Apps(ctx)
+for _, app := range apps {
+	if app.Name == "Ubuntu 24.04 LTS" {
+		uuid, err := client.Compute.Start(ctx, &octaspace.ComputeStartParams{
+			NodeNumber: "7KQ4-M2XD-4",
+			App:        app.UUID,
+			Image:      app.Image,
+			DiskSize:   app.Extra.MinDiskSize,
+		})
+	}
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `UUID` | Pass as `App` to `Compute.Start`; `Image` is still required |
+| `Ports`, `HTTPPorts` | Ports the app exposes |
+| `Extra.MinDiskSize` | Disk the app needs, GB. Not enforced: a smaller `DiskSize` is accepted, and the app may run out of space |
+| `StartupScript`, `Envs` | Only on your own apps |
+
+The list also works without an API key, without your own apps.
 
 ### Start a session
 
@@ -128,6 +156,49 @@ A `RenderMachine` is a node with an NVIDIA GPU, its Blender score and
 `BasePrice` per hour. The node renders for your account until you stop the
 session.
 
+## VPN
+
+Rent a VPN on a node, billed by traffic.
+
+```go
+nodes, err := client.VPN.List(ctx)
+// pick a node whose Protocols contain octaspace.VPNWireGuard
+uuid, err := client.VPN.Start(ctx, octaspace.VPNStartParams{
+	NodeNumber: "7KQ4-M2XD-4",
+	Subkind:    octaspace.VPNWireGuard,
+})
+s, err := client.Sessions.WaitReady(ctx, uuid, nil)
+if err == nil && s.Config != nil {
+	err = os.WriteFile("octa.conf", []byte(s.Config.Text), 0o600) // import it into the client
+}
+```
+
+A `VPNMachine` has its location, network speed, `TrafficPrice` per GB and
+`Protocols`: the protocols that passed an end-to-end check on that node.
+
+| `Subkind` | The session's `Config` |
+| --- | --- |
+| `VPNWireGuard` | `Text`: a WireGuard config file |
+| `VPNAmneziaWG` | `Text`: an AmneziaWG config file |
+| `VPNReality` | `Text`: a VLESS Reality link |
+| `VPNHTTPProxy` | `HTTPProxy`: the proxy's `IP` and `Port` and its login (`Username`, `Password`, HTTP Basic). The proxy lets in only the IP address the `Start` request came from |
+
+Pick a `Subkind` from the node's `Protocols`. A protocol the node did not pass
+returns a `*ValidationError` (`Node's VPN did not pass the connection check`);
+nothing is started or charged.
+
+- One VPN session per node: a second one on the same node returns a
+  `*ValidationError` (`You already have a VPN session on this node`).
+- `Config` of a ready session is **a credential**: a WireGuard config holds
+  the private key, and a proxy's has its password. Do not log it.
+- VPN sessions have no logs, and a node running one stays `NodeIdle` in
+  `Hosting.Nodes`.
+- Stop the session with `client.Sessions.Stop`; until then it is charged for
+  traffic.
+
+The listing also works without an API key, but is then refreshed about once an
+hour; with a key it is at most 10 seconds old.
+
 ## Hosting
 
 The nodes you host, their prices and maintenance.
@@ -141,7 +212,14 @@ for _, n := range nodes {
 
 `Nodes` lists your nodes that are online, with their status (`NodeIdle`,
 `NodeRented`, …), the services they are offered for, prices, hardware,
-location and uptime.
+location and uptime. A node that runs only VPN sessions stays `NodeIdle`.
+
+```go
+node, err := client.Hosting.Get(ctx, "7KQ4-M2XD-4")
+```
+
+`Get` returns one of your online nodes. A node that is offline, does not exist
+or is not yours returns a `*NotFoundError`.
 
 ### Set prices
 
@@ -195,14 +273,24 @@ Platform statistics, updated every few minutes. No API key is needed.
 ```go
 info, err := client.Network.Info(ctx)
 fmt.Println(info.Nodes.Online, info.Sessions.Running, info.Time())
+
+history, err := client.Network.History(ctx, &octaspace.NetworkHistoryParams{
+	Start: time.Now().Add(-7 * 24 * time.Hour),
+	Step:  6 * time.Hour,
+})
+for _, p := range history.Points() {
+	fmt.Println(p.Time, *p.NodesOnline, p.GPUsRented)
+}
 ```
 
-`NetworkInfo` counts nodes, capacity, sessions, users, rendered frames and VPN
-relays.
+| Method | Returns |
+| --- | --- |
+| `Info` | Nodes, capacity (with `GPUsRented`), sessions, users, rendered frames and VPN nodes now |
+| `History` | Nodes, GPUs, TFLOPS, users and sessions over time; the last day with hourly points by default. Each value is the average over its step, so it can be fractional, and `nil` where there is none. `Step` is at least 5 minutes; a range has at most 2000 points. |
 
 ## Stats
 
-GPU market statistics. No API key is needed.
+GPU market and mining statistics. No API key is needed.
 
 ```go
 market, err := client.Stats.GPUCurrent(ctx, &octaspace.GPUStatsParams{
@@ -222,10 +310,16 @@ for _, p := range history["NVIDIA GeForce RTX 4090"].Points() {
 }
 
 locations, err := client.Stats.GPULocations(ctx)
+
+mining, err := client.Stats.Mining(ctx, &octaspace.MiningParams{Role: octaspace.MiningGPU, Days: 30})
+for _, m := range mining.Miners {
+	fmt.Println(m.Name, m.Label, m.GPUHours)
+}
 ```
 
 | Method | Returns |
 | --- | --- |
-| `GPUCurrent` | Per GPU model: the number of GPUs (not nodes), how many are rented, performance, and price percentiles per GPU-hour. A percentile is `nil` when there is no price. |
+| `GPUCurrent` | Per GPU model: the number of GPUs (not nodes), how many are rented, memory (`MemoryMB`), performance, and price percentiles per GPU-hour. A percentile is `nil` when there is no price. |
 | `GPUHistory` | The same over time. `Step` is at least 5 minutes; a range has at most 2000 steps. |
 | `GPULocations` | The number of GPUs by city and model |
+| `Mining` | Miners, algorithms and pools of the platform's mining sessions, most used first, and the miners per day. `Role` is `MiningGPU` (default) or `MiningCPU`; `Days` is 1 – 365 (default 30). |

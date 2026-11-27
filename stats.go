@@ -47,7 +47,10 @@ type GPUModelStats struct {
 	Usage     float64  `json:"usage"`     // percent rented now
 	Usage30d  *float64 `json:"usage_30d"` // percent rented over 30 days; nil if unknown
 	AIScore   int64    `json:"ai_score"`
-	TFLOPS    *float64 `json:"tflops"`
+	// MemoryMB is the memory of one GPU, MiB: the size most GPUs of the
+	// model have. Nil if unknown.
+	MemoryMB *int     `json:"memory_mb"`
+	TFLOPS   *float64 `json:"tflops"`
 	// TFLOPSPerDollar is nil when there is no price to divide by.
 	TFLOPSPerDollar *float64 `json:"tflops_per_dollar"`
 	// Prices are only of nodes whose GPUs are all of this model.

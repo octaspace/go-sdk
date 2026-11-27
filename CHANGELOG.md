@@ -7,19 +7,31 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-27
+
 The SDK follows the current OctaSpace API. Most resources changed; see the
 [resources](docs/resources.md) and [sessions](docs/sessions.md) guides.
 
 ### Added
 
 - `client.Compute`: `List`, `ListRaw`, `Start`, `StartBatch` and `Restart`.
+- `Compute.Apps` and `AppsRaw`: the official apps and the account's own.
 - `client.Render`: `List`, `ListRaw`, `Start` and `StartBatch`.
-- `client.Hosting`: `Nodes`, `NodesRaw`, `SetPrices` and `SetMaintenance`,
-  with the `Price` and `Int` helpers.
-- `client.Stats`: `GPUCurrent`, `GPUHistory` and `GPULocations`.
-- `Sessions.Get`, `GetRaw`, `Logs`, `Stop` and `WaitReady`, with
-  `ErrSessionStopped`.
-- `Network.InfoRaw`.
+- `client.VPN`: `List`, `ListRaw` and `Start` for `VPNWireGuard`,
+  `VPNAmneziaWG`, `VPNReality` and `VPNHTTPProxy`. A VPN `Session` has
+  `Subkind` and `Config` (`Text`, or `HTTPProxy` with the proxy's login);
+  `IsVPN` and `IsRender` tell sessions apart.
+- `client.Hosting`: `Nodes`, `NodesRaw`, `Get`, `GetRaw`, `SetPrices` and
+  `SetMaintenance`, with the `Price` and `Int` helpers. `ServiceOffer` has
+  `Details` and, for VPN, `Protocols`.
+- `client.Stats`: `GPUCurrent`, `GPUHistory`, `GPULocations`, `Mining` and
+  `MiningRaw`. `GPUModelStats.MemoryMB`.
+- `Sessions.Get`, `GetRaw`, `Logs`, `Stop`, `WaitReady` and `WaitStopped`,
+  with `ErrSessionStopped`.
+- `Network.InfoRaw`, `Network.History` and `HistoryRaw` with
+  `NetworkHistory.Points`; `NetworkPower.GPUsRented`.
+- `ComputeMachine`: `CountryISO`, `OSVersion`, `Virt`, `IsWSL`, `IsHiveOS`
+  and `GPUPT`.
 - `MicroUSD` money type with `Dollars()` and `String()`.
 - `Bool` helper for optional `*bool` parameters.
 - `ConflictError` (HTTP 409), `IsConflict` and `IsValidation`.
@@ -140,7 +152,8 @@ First release.
 - Typed errors: `APIError`, `NetworkError`, `IsNotFound`, `IsRateLimit` and
   `IsAuthError`.
 
-[Unreleased]: https://github.com/octaspace/go-sdk/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/octaspace/go-sdk/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/octaspace/go-sdk/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/octaspace/go-sdk/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/octaspace/go-sdk/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/octaspace/go-sdk/compare/v0.2.0...v0.3.0
